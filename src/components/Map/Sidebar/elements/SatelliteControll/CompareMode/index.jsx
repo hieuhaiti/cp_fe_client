@@ -13,7 +13,7 @@ export function CompareSatellite() {
   const error = useSatelliteStore((s) => s.error);
 
   return (
-    <div className="h-full flex flex-col bg-surface">
+    <div className="flex h-full flex-col bg-background">
       {error && (
         <div className="flex gap-2 p-3 bg-destructive/10 border border-destructive/30 animate-in fade-in slide-in-from-top-2">
           <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />

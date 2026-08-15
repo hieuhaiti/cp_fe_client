@@ -6,8 +6,9 @@ import {
   ArrowLeft,
   Calendar,
   Clock3,
-  FileImage,
+  Eye,
   Home,
+  ListTree,
   MessageCircle,
   Send,
   Share2,
@@ -37,6 +38,44 @@ const getCommentInitials = (name) => {
     .toUpperCase();
 };
 
+const normalizeNewsDetail = (detail) => {
+  if (!detail) return null;
+
+  return {
+    ...detail,
+    authorName: detail.authorName ?? detail.author_name,
+    coverUrl: detail.coverUrl ?? detail.cover_url,
+    createdAt: detail.createdAt ?? detail.created_at,
+    isFeatured: detail.isFeatured ?? detail.is_featured,
+    publishedAt: detail.publishedAt ?? detail.published_at,
+    updatedAt: detail.updatedAt ?? detail.updated_at,
+    viewCount: detail.viewCount ?? detail.view_count,
+  };
+};
+
+const prepareArticleContent = (content) => {
+  const sanitized = DOMPurify.sanitize(content || "");
+
+  if (!isHtmlContent(content) || typeof document === "undefined") {
+    return { hasHtml: false, headings: [], html: sanitized };
+  }
+
+  const container = document.createElement("div");
+  container.innerHTML = sanitized;
+  const headings = Array.from(container.querySelectorAll("h2, h3"))
+    .map((heading, index) => {
+      const title = heading.textContent?.trim();
+      if (!title) return null;
+
+      const id = `section-${index + 1}`;
+      heading.id = id;
+      return { id, level: heading.tagName.toLowerCase(), title };
+    })
+    .filter(Boolean);
+
+  return { hasHtml: true, headings, html: container.innerHTML };
+};
+
 export default function NewsDetailPage() {
   const { slugOrId } = useParams();
   const navigate = useNavigate();
@@ -56,12 +95,14 @@ export default function NewsDetailPage() {
   } = useGetNewsDetailBySlugQuery(normalizedParam, {
     enabled: hasNewsId,
   });
-  const news = data?.data || null;
-  const hasHtmlContent = isHtmlContent(news?.content);
-  const sanitizedContent = useMemo(
-    () => DOMPurify.sanitize(news?.content || ""),
+  const news = useMemo(() => normalizeNewsDetail(data?.data), [data?.data]);
+  const articleContent = useMemo(
+    () => prepareArticleContent(news?.content),
     [news?.content],
   );
+  const hasHtmlContent = articleContent.hasHtml;
+  const sanitizedContent = articleContent.html;
+  const articleHeadings = articleContent.headings;
   const viewCount = Number(news?.viewCount);
   const hasViewCount = Number.isFinite(viewCount) && viewCount > 0;
   const {
@@ -186,7 +227,22 @@ export default function NewsDetailPage() {
   return (
     <NewsLayout>
       <div className="min-h-screen bg-(image:--gradient-surface-page)">
-        <article className="container mx-auto max-w-5xl px-4 py-6 sm:py-8">
+        <article className="container mx-auto max-w-6xl px-4 py-6 sm:py-10">
+          <nav
+            aria-label="Điều hướng"
+            className="mb-4 flex items-center gap-2 overflow-hidden text-sm text-muted-foreground"
+          >
+            <Link to="/" className="shrink-0 transition-colors hover:text-primary">
+              Trang chủ
+            </Link>
+            <span aria-hidden="true">/</span>
+            <Link to="/news" className="shrink-0 transition-colors hover:text-primary">
+              Tin tức
+            </Link>
+            <span aria-hidden="true">/</span>
+            <span className="truncate text-foreground">Chi tiết bài viết</span>
+          </nav>
+
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <Button
               variant="outline"
@@ -207,25 +263,31 @@ export default function NewsDetailPage() {
             </Button>
           </div>
 
-          <header className="rounded-lg border border-border bg-card/90 p-5 shadow-sm backdrop-blur sm:p-7">
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-              {news.isFeatured && (
-                <Badge variant="soft-warning">Tin nổi bật</Badge>
-              )}
-              <Badge variant="soft-primary">Tin đã xuất bản</Badge>
-            </div>
+          <header className="relative overflow-hidden rounded-[2rem] border border-(--gradient-surface-panel-border) bg-(image:--gradient-surface-panel) p-6 text-(--gradient-surface-panel-foreground) shadow-xl sm:p-10">
+            <div className="absolute -right-12 top-0 h-52 w-52 rounded-full border border-white/15" />
+            <div className="absolute bottom-0 right-24 h-28 w-28 rounded-t-full bg-(--gradient-surface-panel-wash)" />
+            <div className="relative max-w-4xl">
+              <p className="mb-4 text-xs font-bold uppercase tracking-[0.2em] text-white/70">
+                Thông tin thành phố Cẩm Phả
+              </p>
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                {news.isFeatured && (
+                  <Badge variant="soft-warning">Tin nổi bật</Badge>
+                )}
+                <Badge variant="soft-primary">Tin đã xuất bản</Badge>
+              </div>
 
-            <h1 className="max-w-4xl text-3xl font-bold leading-tight text-foreground sm:text-4xl">
+            <h1 className="max-w-4xl text-3xl font-bold leading-tight text-white sm:text-5xl">
               {news.title}
             </h1>
 
             {news.summary && (
-              <p className="mt-4 max-w-4xl border-l-4 border-primary pl-4 text-base font-medium leading-7 text-muted-foreground sm:text-lg">
+              <p className="mt-5 max-w-4xl border-l-2 border-white/70 pl-4 text-base font-medium leading-7 text-white/80 sm:text-lg">
                 {news.summary}
               </p>
             )}
 
-            <div className="mt-6 flex flex-wrap gap-3 border-t border-border pt-5 text-sm text-muted-foreground">
+            <div className="mt-8 flex flex-wrap gap-3 border-t border-white/20 pt-5 text-sm text-white/75">
               <span className="inline-flex items-center gap-2">
                 <User className="h-4 w-4" />
                 {news.authorName || "Ban biên tập"}
@@ -242,10 +304,11 @@ export default function NewsDetailPage() {
                 <span>{viewCount.toLocaleString("vi-VN")} lượt xem</span>
               )}
             </div>
+            </div>
           </header>
 
-          <div className="mt-6 overflow-hidden rounded-lg border border-border bg-muted shadow-sm">
-            {news.coverUrl ? (
+          {news.coverUrl && (
+            <div className="relative z-10 mx-3 -mt-4 overflow-hidden rounded-2xl border-4 border-background bg-muted shadow-lg sm:mx-8 sm:-mt-8">
               <img
                 src={praseLink(news.coverUrl)}
                 alt={news.title}
@@ -254,22 +317,14 @@ export default function NewsDetailPage() {
                   event.currentTarget.style.display = "none";
                 }}
               />
-            ) : (
-              <div className="flex h-72 items-center justify-center bg-muted text-muted-foreground">
-                <div className="text-center">
-                  <FileImage className="mx-auto mb-2 h-12 w-12" />
-                  <span className="text-sm font-medium">
-                    Bài viết chưa có ảnh đại diện
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
 
-          <div className="mx-auto mt-8 max-w-3xl">
+          <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+            <div className="min-w-0 rounded-[1.5rem] border border-border bg-card p-5 shadow-sm sm:p-8">
             {hasHtmlContent ? (
               <div
-                className="text-base leading-8 text-foreground [&_a]:font-medium [&_a]:text-primary [&_blockquote]:my-5 [&_blockquote]:border-l-4 [&_blockquote]:border-primary [&_blockquote]:pl-4 [&_h2]:mb-3 [&_h2]:mt-8 [&_h2]:text-2xl [&_h3]:mb-3 [&_h3]:mt-6 [&_h3]:text-xl [&_img]:my-6 [&_img]:rounded-lg [&_li]:mb-2 [&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mb-5 [&_strong]:font-semibold [&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6"
+                className="text-base leading-8 text-foreground [&_a]:font-medium [&_a]:text-primary [&_a]:underline-offset-4 hover:[&_a]:underline [&_blockquote]:my-6 [&_blockquote]:border-l-4 [&_blockquote]:border-primary [&_blockquote]:bg-primary/5 [&_blockquote]:py-1 [&_blockquote]:pl-5 [&_h2]:mb-4 [&_h2]:mt-10 [&_h2]:scroll-mt-28 [&_h2]:border-b [&_h2]:border-border [&_h2]:pb-3 [&_h2]:text-2xl [&_h2]:font-bold [&_h3]:mb-3 [&_h3]:mt-8 [&_h3]:scroll-mt-28 [&_h3]:text-xl [&_h3]:font-semibold [&_h3]:text-primary [&_img]:my-7 [&_img]:rounded-xl [&_li]:mb-2 [&_li::marker]:text-primary [&_ol]:my-5 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mb-5 [&_strong]:font-semibold [&_ul]:my-5 [&_ul]:list-disc [&_ul]:pl-6"
                 dangerouslySetInnerHTML={{ __html: sanitizedContent }}
               />
             ) : (
@@ -459,10 +514,67 @@ export default function NewsDetailPage() {
                     )}
                   </>
                 )}
-            </section>
+              </section>
+            </div>
+
+            <aside className="space-y-4 lg:sticky lg:top-24">
+              {articleHeadings.length > 0 && (
+                <section className="rounded-[1.25rem] border border-border bg-card/90 p-4 shadow-sm backdrop-blur">
+                  <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <ListTree className="h-4 w-4 text-primary" />
+                    Nội dung bài viết
+                  </h2>
+                  <nav aria-label="Mục lục" className="mt-3 space-y-1">
+                    {articleHeadings.map((heading) => (
+                      <a
+                        key={heading.id}
+                        href={`#${heading.id}`}
+                        className={`block rounded-lg px-2 py-1.5 text-sm leading-5 text-muted-foreground transition-colors hover:bg-primary/8 hover:text-primary ${
+                          heading.level === "h3" ? "pl-5 text-xs" : "font-medium"
+                        }`}
+                      >
+                        {heading.title}
+                      </a>
+                    ))}
+                  </nav>
+                </section>
+              )}
+
+              <section className="rounded-[1.25rem] border border-border bg-card/90 p-4 shadow-sm backdrop-blur">
+                <h2 className="text-sm font-semibold text-foreground">Thông tin bài viết</h2>
+                <dl className="mt-4 space-y-3 text-sm">
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Đăng bởi</dt>
+                    <dd className="mt-0.5 font-medium text-foreground">
+                      {news.authorName || "Ban biên tập"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs text-muted-foreground">Ngày xuất bản</dt>
+                    <dd className="mt-0.5 font-medium text-foreground">
+                      {formatDate(news.publishedAt || news.createdAt)}
+                    </dd>
+                  </div>
+                  {hasViewCount && (
+                    <div className="flex items-center gap-2 border-t border-border pt-3 text-muted-foreground">
+                      <Eye className="h-4 w-4 text-primary" />
+                      {viewCount.toLocaleString("vi-VN")} lượt xem
+                    </div>
+                  )}
+                </dl>
+                <Button
+                  variant="outline"
+                  onClick={handleShare}
+                  className="mt-5 w-full bg-background/70"
+                >
+                  <Share2 className="h-4 w-4" />
+                  Chia sẻ bài viết
+                </Button>
+              </section>
+            </aside>
           </div>
 
-          <div className="mx-auto mt-8 flex max-w-3xl justify-start">
+          <div className="mt-8 flex justify-start">
             <Button variant="outline" onClick={() => navigate("/news")}>
               <ArrowLeft className="h-4 w-4" />
               Quay lại tin tức

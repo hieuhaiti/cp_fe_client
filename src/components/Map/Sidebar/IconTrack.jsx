@@ -28,7 +28,7 @@ export default function IconTrack() {
                   type="button"
                   size="sm"
                   variant={isActive ? "soft-primary" : "ghost"}
-                  onClick={() => setActivePanel(isActive ? null : item.id)}
+                  onClick={() => setActivePanel(item.id)}
                   className="h-9 px-3 gap-2 rounded-md"
                   aria-label={item.label}
                 >

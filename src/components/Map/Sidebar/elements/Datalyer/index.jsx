@@ -4,19 +4,25 @@ import { LayerSelection } from "./LayerSelection";
 
 export function DataLayers() {
   return (
-    <div className="flex flex-col h-full overflow-y-auto p-2 space-y-6 border-border">
+    <div className="flex min-w-0 flex-col gap-4 py-1 sm:gap-5 sm:px-1 lg:gap-6">
       {/* Search Section */}
-      <SearchEngine />
+      <section className="min-w-0 shrink-0">
+        <SearchEngine />
+      </section>
 
-      <hr className="border-border" />
+      <hr className="border-border/80" />
 
       {/* Data Layer Section */}
-      <LayerSelection />
+      <section className="min-w-0">
+        <LayerSelection />
+      </section>
 
-      <hr className="border-border" />
+      <hr className="border-border/80" />
 
       {/* Style Change Section */}
-      <StyleChange />
+      <section className="min-w-0 pb-1">
+        <StyleChange />
+      </section>
     </div>
   );
 }

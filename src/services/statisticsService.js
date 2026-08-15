@@ -22,11 +22,6 @@ export function useGetStatisticsAreasQuery(params = {}, options = {}) {
   );
 }
 
-/** GET /statistics/timeseries?type= */
-export function getStatisticsTimeseries({ type } = {}) {
-  return fetcher(withQuery(`${STATISTICS_PATH}/timeseries`, { type }));
-}
-
 /** GET /statistics/compare?beforeSourceId=&afterSourceId= */
 export function compareStatistics(beforeSourceId, afterSourceId) {
   return fetcher(

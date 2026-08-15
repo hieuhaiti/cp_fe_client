@@ -6,10 +6,12 @@ import {
   ChevronUp,
   Settings,
 } from "lucide-react";
-import LoadingInline from "@/components/common/LoadingInline";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -53,6 +55,7 @@ function ConfigPanel() {
     isLoading,
     setStartDate,
     setEndDate,
+    setCollection,
     setCloudCover,
     setIsLoading,
     setError,
@@ -177,7 +180,7 @@ function ConfigPanel() {
   ]);
 
   return (
-    <div className="bg-card">
+    <Card className="gap-0 overflow-hidden py-0">
       {/* Header - always visible */}
       <Button
         type="button"
@@ -193,9 +196,9 @@ function ConfigPanel() {
           </span>
         </div>
         {open ? (
-          <ChevronUp size={16} className="text-foreground/60" />
+          <ChevronUp size={16} className="text-muted-foreground" />
         ) : (
-          <ChevronDown size={16} className="text-foreground/60" />
+          <ChevronDown size={16} className="text-muted-foreground" />
         )}
       </Button>
 
@@ -210,16 +213,18 @@ function ConfigPanel() {
         <div className="border-t border-border px-3 py-3 space-y-3">
           {/* Date Range */}
           <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-foreground/80 uppercase tracking-wide">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {LABELS.timeRange}
             </h4>
             <div className="space-y-2">
               <div>
-                <label className="text-xs text-foreground/60 mb-1 block">
+                <Label htmlFor="satellite-single-start" className="mb-1 text-xs text-muted-foreground">
                   {LABELS.from}
-                </label>
+                </Label>
                 <Input
+                  id="satellite-single-start"
                   type="date"
+                  variant="filled"
                   value={formatDateForInput(startDate)}
                   onChange={handleStartDateChange}
                   disabled={isLoading}
@@ -227,11 +232,13 @@ function ConfigPanel() {
                 />
               </div>
               <div>
-                <label className="text-xs text-foreground/60 mb-1 block">
+                <Label htmlFor="satellite-single-end" className="mb-1 text-xs text-muted-foreground">
                   {LABELS.to}
-                </label>
+                </Label>
                 <Input
+                  id="satellite-single-end"
                   type="date"
+                  variant="filled"
                   value={formatDateForInput(endDate)}
                   onChange={handleEndDateChange}
                   disabled={isLoading}
@@ -243,22 +250,24 @@ function ConfigPanel() {
 
           {/* Layer Types */}
           <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-foreground/80 uppercase tracking-wide">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {LABELS.layerTypes}
             </h4>
             <div className="space-y-2">
               {SINGLE_LAYER_ENTRIES.map(([layerId, config]) => (
                 <Tooltip key={layerId} delayDuration={200}>
                   <TooltipTrigger asChild>
-                    <label
-                      className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors ${
+                    <Label
+                      htmlFor={`satellite-single-layer-${layerId}`}
+                      className={`flex items-center gap-2 rounded border p-2 transition-colors ${
                         isLoading
-                          ? "opacity-50 cursor-not-allowed bg-surface-muted"
-                          : "hover:bg-surface-muted border-border/50"
+                          ? "cursor-not-allowed bg-muted/50 opacity-50"
+                          : "cursor-pointer border-border/50 hover:bg-muted/50"
                       }`}
                     >
                       <div className="flex items-center gap-2 flex-1">
                         <Checkbox
+                          id={`satellite-single-layer-${layerId}`}
                           checked={selectedLayers.includes(layerId)}
                           onCheckedChange={() => handleLayerToggle(layerId)}
                           disabled={isLoading}
@@ -271,12 +280,12 @@ function ConfigPanel() {
                           <p className="text-xs font-medium text-foreground">
                             {config.label}
                           </p>
-                          <p className="text-xs text-foreground/50 truncate">
+                          <p className="truncate text-xs text-muted-foreground">
                             {config.description}
                           </p>
                         </div>
                       </div>
-                    </label>
+                    </Label>
                   </TooltipTrigger>
                   {isLoading && (
                     <TooltipContent className="text-xs">
@@ -290,22 +299,43 @@ function ConfigPanel() {
 
           {/* Settings */}
           <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-foreground/80 uppercase tracking-wide">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {LABELS.settings}
             </h4>
-            <div className="flex items-center justify-between gap-2">
-              <label className="text-xs text-foreground/60 shrink-0">
+            <div className="space-y-1.5">
+              <Label htmlFor="satellite-single-collection" className="text-xs text-muted-foreground">
                 {LABELS.collection}
-              </label>
+              </Label>
+              <Select
+                value={collection}
+                onValueChange={setCollection}
+                disabled={isLoading}
+              >
+                <SelectTrigger
+                  id="satellite-single-collection"
+                  size="sm"
+                  variant="filled"
+                  className="w-full text-xs"
+                >
+                  <SelectValue placeholder="Chọn nguồn dữ liệu" />
+                </SelectTrigger>
+                <SelectContent position="popper" align="start">
+                  {COLLECTION_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-xs text-foreground/60">
+                <Label className="text-xs text-muted-foreground">
                   {LABELS.cloudCover}
-                </label>
-                <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded">
+                </Label>
+                <Badge variant="soft-primary" className="text-[10px]">
                   {cloudCover}%
-                </span>
+                </Badge>
               </div>
               <Slider
                 min={CLOUD_COVER_MIN}
@@ -317,7 +347,7 @@ function ConfigPanel() {
                 className="w-full"
               />
             </div>
-            <p className="text-[10px] text-foreground/40 leading-relaxed">
+            <p className="text-[10px] leading-relaxed text-muted-foreground">
               Nguồn dữ liệu và tỷ lệ mây chỉ áp dụng cho Ảnh Màu, Chỉ số thực
               vật và Ảnh Nhiệt.
             </p>
@@ -329,19 +359,13 @@ function ConfigPanel() {
               variant="gradient-primary"
               onClick={handleAnalyze}
               disabled={isLoading || selectedLayers.length === 0}
+              isLoading={isLoading}
               className="flex-1 gap-2 h-8"
             >
-              {isLoading ? (
-                <>
-                  <LoadingInline size="small" color="primary" />
-                  <span className="text-xs">{LABELS.loading}</span>
-                </>
-              ) : (
-                <>
-                  <Play size={14} />
-                  <span className="text-xs">{LABELS.loadImage}</span>
-                </>
-              )}
+              {!isLoading && <Play size={14} />}
+              <span className="text-xs">
+                {isLoading ? LABELS.loading : LABELS.loadImage}
+              </span>
             </Button>
             <Button
               onClick={() => {
@@ -358,7 +382,7 @@ function ConfigPanel() {
           </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
 

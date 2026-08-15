@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlertCircle,
   AlertTriangle,
   BarChart3,
+  CalendarDays,
+  ChevronDown,
   Clock3,
   Eye,
   EyeOff,
+  Info,
   Layers3,
   Loader2,
   RefreshCw,
@@ -12,8 +16,29 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { buildOgcSourceId } from "@/helper/Map/MapHelper";
 import { formatDateTime } from "@/lib/utils";
 import { useMapStore } from "@/stores/Map/useMapStore";
@@ -25,45 +50,387 @@ import {
 } from "@/features/flood/api/floodApi";
 
 const MODULES = [
-  { code: "event", short: "M1", label: "Hiện trạng ngập", description: "Sentinel-1 trước và sau sự kiện" },
-  { code: "hand", short: "M2", label: "Nhạy cảm địa hình", description: "HAND và độ dốc địa hình" },
-  { code: "rain", short: "M3", label: "Chỉ số nguy cơ", description: "Chỉ số tương đối, không phải xác suất" },
-  { code: "impact", short: "M4", label: "Tác động", description: "Dân cư, công trình và hạ tầng" },
-  { code: "trend", short: "M5", label: "Xu thế nhiều năm", description: "Tần suất, ngập mới và biến động sử dụng đất" },
+  {
+    code: "event",
+    short: "M1",
+    label: "Hiện trạng ngập",
+    description: "So sánh ảnh vệ tinh trước và sau sự kiện",
+    notice:
+      "Kết quả quan sát từ ảnh radar Sentinel-1. Vùng triều và các khu vực dễ gây nhiễu đã được tách khỏi lớp báo cáo chính.",
+  },
+  {
+    code: "hand",
+    short: "M2",
+    label: "Kịch bản HAND",
+    description: "Mô phỏng theo độ cao và độ dốc địa hình",
+    notice:
+      "Đây là kịch bản mô phỏng địa hình, không phải vùng ngập được quan sát thực tế.",
+  },
+  {
+    code: "rain",
+    short: "M3",
+    label: "Nguy cơ theo mưa",
+    description: "Chỉ số rủi ro tương đối dựa trên lượng mưa",
+    notice:
+      "Chỉ số nguy cơ theo mưa là chỉ số tương đối, không phải xác suất xảy ra ngập.",
+  },
+  {
+    code: "impact",
+    short: "M4",
+    label: "Tác động ngập",
+    description: "Dân cư, đất trồng trọt và khu xây dựng",
+    notice:
+      "Mô-đun tác động chủ yếu cung cấp số liệu thống kê; có thể không có lớp raster công khai.",
+  },
+  {
+    code: "trend",
+    short: "M5",
+    label: "Xu thế nhiều năm",
+    description: "Tần suất, ngập mới và biến động sử dụng đất",
+    notice:
+      "Dùng để theo dõi xu thế dài hạn. Cần đối chiếu hiện trường trước khi sử dụng cho quyết định quản lý.",
+  },
 ];
+
+/**
+ * Diễn giải ngắn gọn, dễ hiểu cho từng loại lớp raster.
+ * Người dùng cuối không cần biết mã kỹ thuật (fl_event_open_water_r15…).
+ */
+const ARTIFACT_GLOSSARY = {
+  main_flood_non_tidal:
+    "Vùng ngập đã xác nhận, loại bỏ khu vực dao động triều ven biển. Đây là lớp báo cáo chính.",
+  open_water:
+    "Mặt nước mở (ao, hồ, sông, biển) phát hiện từ ảnh vệ tinh radar.",
+  shallow_flood:
+    "Vùng nghi ngập nông, có độ tin cậy thấp hơn và cần đối chiếu hiện trường.",
+  tidal_candidate:
+    "Vùng nghi do triều lên hoặc xuống, không tính vào tổng diện tích ngập.",
+  mining_candidate:
+    "Vùng nghi khai trường mỏ, nơi bề mặt trơ có thể bị nhận nhầm là ngập.",
+  urban_double_bounce:
+    "Vùng nghi phản xạ đôi ở đô thị, thường không phải là vùng ngập.",
+  hand_scenario:
+    "Vùng có thể ngập theo ngưỡng cao độ HAND đã chọn. Đây là mô phỏng, không phải quan sát thực tế.",
+  hand_depth: "Độ sâu ngập ước tính theo kịch bản HAND, tính bằng mét.",
+  rain_risk_score:
+    "Chỉ số rủi ro liên tục từ 0 đến 1 dựa trên mưa, không phải xác suất ngập.",
+  rain_risk_class: "Phân lớp nguy cơ theo mưa: thấp, trung bình và cao.",
+  affected_population:
+    "Ước tính dân cư nằm trong vùng chịu ảnh hưởng bởi ngập.",
+  affected_cropland: "Đất trồng trọt giao với vùng chịu ảnh hưởng bởi ngập.",
+  affected_built: "Khu vực xây dựng giao với vùng chịu ảnh hưởng bởi ngập.",
+  trend_frequency:
+    "Tỷ lệ số kỳ một vị trí được nhận diện là ngập trong chuỗi nhiều năm.",
+  trend_frequent_flood: "Vùng ngập tái diễn nhiều lần theo thời gian.",
+  trend_new_flood: "Vùng mới xuất hiện ngập trong giai đoạn gần đây.",
+  pond_to_built: "Ao hoặc mặt nước đã chuyển đổi sang khu vực xây dựng.",
+  drainage_sensitive:
+    "Vùng nhạy cảm với tiêu thoát nước, dễ đọng nước khi mưa.",
+  encroachment_alert:
+    "Cảnh báo dấu hiệu lấn chiếm mặt nước hoặc hành lang thoát lũ.",
+  trend_tidal_candidate:
+    "Vùng triều cần đối soát chất lượng trong phân tích xu thế.",
+  trend_mining_candidate:
+    "Vùng khai trường mỏ cần đối soát chất lượng trong phân tích xu thế.",
+};
 
 const STATUS_META = {
   SUCCEEDED: { label: "Hoàn thành", variant: "soft-success" },
   RUNNING: { label: "Đang xử lý", variant: "soft-warning" },
   QUEUED: { label: "Đang chờ", variant: "soft-warning" },
+  COMPUTING: { label: "Đang tính toán", variant: "soft-warning" },
   EXPORTING: { label: "Đang xuất", variant: "soft-warning" },
+  HARVESTING: { label: "Đang thu nhận", variant: "soft-warning" },
   INGESTING: { label: "Đang nạp", variant: "soft-warning" },
+  VALIDATING: { label: "Đang kiểm định", variant: "soft-warning" },
+  ARCHIVING: { label: "Đang lưu trữ", variant: "soft-warning" },
   PUBLISHING: { label: "Đang công bố", variant: "soft-warning" },
   FAILED: { label: "Thất bại", variant: "destructive" },
+  DLQ: { label: "Cần xử lý", variant: "destructive" },
   CANCELLED: { label: "Đã hủy", variant: "outline" },
+};
+
+const WARNING_LABELS = {
+  NON_COMMERCIAL_DTM_FABDEM:
+    "Dữ liệu địa hình FABDEM có điều kiện giới hạn khi sử dụng thương mại.",
+  TERRAIN_FELL_BACK_TO_DSM:
+    "Hệ thống đã dùng dữ liệu địa hình dự phòng; độ chính xác có thể giảm.",
+  INSUFFICIENT_VALID_PERIODS_FOR_NEW_FLOOD:
+    "Chưa đủ kỳ dữ liệu hợp lệ để kết luận chắc chắn về vùng ngập mới.",
+};
+
+const ARTIFACT_PRIORITY = {
+  main_flood_non_tidal: 1,
+  open_water: 2,
+  hand_scenario: 1,
+  hand_depth: 2,
+  rain_risk_class: 1,
+  rain_risk_score: 2,
+  trend_frequency: 1,
+  trend_frequent_flood: 2,
+  trend_new_flood: 3,
 };
 
 function unwrap(payload) {
   return payload?.data ?? payload ?? {};
 }
 
-function toFloodMapLayer(artifact) {
+function normalizeId(value) {
+  return value == null ? "" : String(value);
+}
+
+function describeArtifact(artifact) {
+  return (
+    ARTIFACT_GLOSSARY[artifact?.code] ||
+    artifact?.metadata?.description ||
+    "Lớp raster chuyên đề dùng để chồng ghép và đối chiếu trên bản đồ."
+  );
+}
+
+function describeWarning(warning) {
+  const code = String(warning || "");
+  return WARNING_LABELS[code] || code.replaceAll("_", " ");
+}
+
+function formatNumber(value, options = {}) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "—";
+  return number.toLocaleString("vi-VN", {
+    maximumFractionDigits: 2,
+    ...options,
+  });
+}
+
+function formatMetric(value, unit, options) {
+  if (value == null || !Number.isFinite(Number(value))) return null;
+  return `${formatNumber(value, options)}${unit ? ` ${unit}` : ""}`;
+}
+
+function runMetadata(run) {
+  return run?.resultMetadata || run?.metadata || {};
+}
+
+function formatDateShort(value) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(parsed);
+}
+
+function getAnalysisPeriods(module, run) {
+  const metadata = runMetadata(run);
+  if (module === "event") {
+    const preStart = formatDateShort(metadata.preStart);
+    const preEnd = formatDateShort(metadata.preEnd);
+    const postStart = formatDateShort(metadata.postStart);
+    const postEnd = formatDateShort(metadata.postEnd);
+    const periods = [];
+    if (preStart && preEnd) {
+      periods.push({ label: "Kỳ nền", value: `${preStart} → ${preEnd}` });
+    }
+    if (postStart && postEnd) {
+      periods.push({
+        label: "Kỳ phân tích",
+        value: `${postStart} → ${postEnd}`,
+      });
+    }
+    return periods;
+  }
+  return [];
+}
+
+function getModuleMetrics(module, run) {
+  const metadata = runMetadata(run);
+  const metrics = {
+    event: [
+      {
+        label: "Diện tích ngập",
+        value: formatMetric(metadata.mainAreaHa, "ha"),
+      },
+      {
+        label: "Ảnh kỳ nền",
+        value: formatMetric(metadata.preSceneCount, "ảnh", {
+          maximumFractionDigits: 0,
+        }),
+      },
+      {
+        label: "Ảnh kỳ phân tích",
+        value: formatMetric(metadata.postSceneCount, "ảnh", {
+          maximumFractionDigits: 0,
+        }),
+      },
+    ],
+    hand: [
+      {
+        label: "Diện tích kịch bản",
+        value: formatMetric(metadata.scenarioAreaHa, "ha"),
+      },
+      {
+        label: "Mực nước giả định",
+        value: formatMetric(metadata.levelM, "m"),
+      },
+      {
+        label: "Độ sâu trung bình",
+        value: formatMetric(metadata.meanDepthM, "m"),
+      },
+      {
+        label: "Độ sâu lớn nhất",
+        value: formatMetric(metadata.maxDepthM, "m"),
+      },
+    ],
+    rain: [
+      {
+        label: "Vùng nguy cơ cao",
+        value: formatMetric(metadata.highRiskAreaHa, "ha"),
+      },
+      {
+        label: "Mưa 24 giờ",
+        value: formatMetric(metadata.rainMm24h, "mm"),
+      },
+      {
+        label: "Mưa 7 ngày",
+        value: formatMetric(metadata.rainMm7d, "mm"),
+      },
+      {
+        label: "Ngưỡng phân lớp",
+        value: formatMetric(metadata.threshold, ""),
+      },
+    ],
+    impact: [
+      {
+        label: "Dân số ảnh hưởng",
+        value: formatMetric(metadata.affectedPopulation, "người", {
+          maximumFractionDigits: 0,
+        }),
+      },
+      {
+        label: "Diện tích ngập",
+        value: formatMetric(metadata.floodAreaHa, "ha"),
+      },
+      {
+        label: "Đất trồng trọt",
+        value: formatMetric(metadata.affectedCroplandHa, "ha"),
+      },
+      {
+        label: "Khu xây dựng",
+        value: formatMetric(
+          metadata.affectedBuiltHa ?? metadata.affectedBuiltUpHa,
+          "ha",
+        ),
+      },
+    ],
+    trend: [
+      {
+        label: "Kỳ hợp lệ",
+        value:
+          metadata.validPeriodCount != null && metadata.totalPeriods != null
+            ? `${formatNumber(metadata.validPeriodCount, { maximumFractionDigits: 0 })}/${formatNumber(metadata.totalPeriods, { maximumFractionDigits: 0 })} kỳ`
+            : null,
+      },
+      {
+        label: "Ngưỡng tái diễn",
+        value: formatMetric(metadata.frequencyAlertPercent, "%"),
+      },
+      {
+        label: "Độ chính xác tổng thể",
+        value:
+          metadata.assessment?.overallAccuracy != null
+            ? formatMetric(metadata.assessment.overallAccuracy * 100, "%")
+            : null,
+      },
+    ],
+  };
+
+  return (metrics[module] || []).filter(({ value }) => value != null);
+}
+
+function buildAvailableRuns(module, runs, layers, overview) {
+  const byId = new Map();
+
+  const addRun = (run) => {
+    const id = normalizeId(run?.id);
+    if (!id) return;
+    const current = byId.get(id) || {};
+    byId.set(id, {
+      ...current,
+      ...run,
+      id,
+      module,
+      resultMetadata:
+        run?.resultMetadata ||
+        run?.metadata ||
+        current.resultMetadata ||
+        current.metadata ||
+        {},
+      warnings: run?.warnings || current.warnings || [],
+    });
+  };
+
+  runs.filter((run) => run.module === module).forEach(addRun);
+
+  const latest = overview?.modules?.[module];
+  if (latest) addRun({ ...latest, module });
+
+  layers
+    .filter((layer) => layer.module === module && layer.analysisRunId != null)
+    .forEach((layer) => {
+      const id = normalizeId(layer.analysisRunId);
+      if (byId.has(id)) return;
+      addRun({
+        id,
+        module,
+        status: "SUCCEEDED",
+        finishedAt: layer.publishedAt,
+        resultMetadata: {},
+      });
+    });
+
+  return [...byId.values()].sort((left, right) => {
+    const leftTime = new Date(
+      left.finishedAt || left.publishedAt || 0,
+    ).getTime();
+    const rightTime = new Date(
+      right.finishedAt || right.publishedAt || 0,
+    ).getTime();
+    return rightTime - leftTime;
+  });
+}
+
+function toFloodMapLayer(artifact, legend = null) {
   const workspace = artifact.workspace || "campha";
   const qualifiedName = artifact.layerName
     ? `${workspace}:${artifact.layerName}`
     : "";
   return {
     id: `flood-${artifact.id}`,
+    layer_id: artifact.registryLayerId,
     code: `flood-${artifact.id}-${artifact.code}`,
-    name: artifact.metadata?.label?.vi || artifact.code,
+    name: artifact.metadata?.label?.vi || legend?.label?.vi || artifact.code,
+    title: artifact.metadata?.label?.vi || legend?.label?.vi || artifact.code,
+    subtitle: artifact.publishedAt
+      ? `Công bố ${formatDateTime(artifact.publishedAt)}`
+      : "Ngập lụt và thủy văn",
     category: "flood",
     geometry_type: "RASTER",
     geoserver_layer: qualifiedName,
+    is_public: artifact.isPublic === true,
     workspace,
-    style_name: artifact.styleName || undefined,
+    style_name: artifact.styleName || artifact.metadata?.style || undefined,
+    legend,
     enabled: true,
     artifact,
   };
+}
+
+function removeFloodArtifacts(artifacts) {
+  const { removeOgcLayerData } = useMapStore.getState();
+  artifacts.forEach((artifact) => {
+    removeOgcLayerData(buildOgcSourceId(toFloodMapLayer(artifact)));
+  });
 }
 
 function StatusBadge({ status }) {
@@ -71,73 +438,163 @@ function StatusBadge({ status }) {
     label: "Chưa có dữ liệu",
     variant: "outline",
   };
-  return <Badge variant={meta.variant}>{meta.label}</Badge>;
-}
-
-function ModuleCard({ module, latest, layerCount, active, onClick }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full rounded-lg border p-2.5 text-left transition-colors ${
-        active ? "border-sky-500 bg-sky-50 dark:bg-sky-950/30" : "border-border bg-card hover:bg-muted/30"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold text-foreground">
-            {module.short} · {module.label}
-          </p>
-          <p className="mt-0.5 text-[10px] leading-4 text-muted-foreground">
-            {module.description}
-          </p>
-        </div>
-        <StatusBadge status={latest?.status} />
-      </div>
-      <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground">
-        <span>{layerCount} lớp đã công bố</span>
-        {latest?.finishedAt ? <span>{formatDateTime(latest.finishedAt)}</span> : null}
-      </div>
-    </button>
+    <Badge variant={meta.variant} className="px-1.5 text-[10px]">
+      {meta.label}
+    </Badge>
   );
 }
 
-function Legend({ legend }) {
-  if (!legend) return null;
+function StepLabel({ step, children, htmlFor }) {
   return (
-    <div className="mt-2 rounded-md bg-muted/25 p-2">
-      <p className="mb-1 text-[10px] font-medium text-muted-foreground">Chú giải</p>
-      <div className="flex flex-wrap gap-x-2 gap-y-1">
-        {(legend.entries || []).map((entry, index) => (
-          <span key={`${entry.color}-${index}`} className="flex items-center gap-1 text-[10px] text-muted-foreground">
-            <span className="h-2.5 w-2.5 rounded-sm border border-border" style={{ backgroundColor: entry.color }} />
-            <span>{entry.label?.vi || entry.label?.en || (entry.value ?? "Có")}</span>
-          </span>
-        ))}
-      </div>
+    <Label htmlFor={htmlFor} className="gap-2 text-xs font-medium">
+      <span className="flex size-5 items-center justify-center rounded-full bg-info text-[10px] font-bold text-info-foreground">
+        {step}
+      </span>
+      <span>{children}</span>
+    </Label>
+  );
+}
+
+function MetricGrid({ metrics }) {
+  if (!metrics.length) return null;
+  return (
+    <div className="grid grid-cols-2 gap-2" aria-label="Số liệu tóm tắt">
+      {metrics.map((metric) => (
+        <div
+          key={metric.label}
+          className="min-w-0 rounded-lg border border-info/20 bg-(--info-subtle) p-2.5"
+        >
+          <p className="text-[10px] leading-4 text-muted-foreground">
+            {metric.label}
+          </p>
+          <p
+            className="mt-0.5 truncate text-sm font-semibold text-(--info-subtle-foreground)"
+            title={metric.value}
+          >
+            {metric.value}
+          </p>
+        </div>
+      ))}
     </div>
   );
 }
 
-function LayerRow({ artifact, legend, checked, onToggle }) {
-  const label = artifact.metadata?.label?.vi || legend?.label?.vi || artifact.code;
-  const isQa = artifact.role === "QA";
+function LegendPreview({ legend }) {
+  const entries = Array.isArray(legend?.entries) ? legend.entries : [];
+  if (!entries.length) return null;
   return (
-    <div className="rounded-lg border border-border bg-card p-2.5">
-      <label className="flex cursor-pointer items-start gap-2.5">
-        <Checkbox checked={checked} onCheckedChange={onToggle} className="mt-0.5" />
+    <span className="mt-1.5 flex items-center gap-1" aria-label="Màu chú giải">
+      {entries.slice(0, 6).map((entry, index) => (
+        <span
+          key={`${entry.color}-${entry.value ?? index}`}
+          className="size-2.5 rounded-sm border border-border/70"
+          style={{ backgroundColor: entry.color || "transparent" }}
+          title={
+            entry.label?.vi ||
+            entry.label?.en ||
+            (entry.value != null ? String(entry.value) : undefined)
+          }
+        />
+      ))}
+      <span className="ml-1 text-[10px] text-muted-foreground">
+        Chú giải hiển thị trên bản đồ
+      </span>
+    </span>
+  );
+}
+
+function LayerRow({ artifact, legend, checked, onToggle }) {
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const label =
+    artifact.metadata?.label?.vi || legend?.label?.vi || artifact.code;
+  const isQa = artifact.role === "QA";
+  const resolution = artifact.resolutionM
+    ? `${formatNumber(artifact.resolutionM)} m`
+    : null;
+  const checkboxId = `flood-layer-${artifact.id}`;
+
+  return (
+    <div
+      className={`rounded-lg border p-2.5 transition-colors ${
+        checked
+          ? "border-info/40 bg-(--info-subtle)"
+          : "border-border/70 bg-card hover:bg-muted/25"
+      }`}
+    >
+      <Label
+        htmlFor={checkboxId}
+        className="flex cursor-pointer items-start gap-2.5"
+      >
+        <Checkbox
+          id={checkboxId}
+          checked={checked}
+          onCheckedChange={onToggle}
+          variant="info"
+          className="mt-0.5"
+        />
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-medium text-foreground">{label}</span>
-            {isQa ? <Badge variant="soft-warning">QA</Badge> : <Badge variant="soft-info">Sản phẩm</Badge>}
+            <span className="text-xs font-semibold text-foreground">
+              {label}
+            </span>
+            <Badge variant={isQa ? "soft-warning" : "soft-info"}>
+              {isQa ? "Kiểm định" : "Sản phẩm"}
+            </Badge>
+            {resolution ? (
+              <span className="text-[10px] text-muted-foreground">
+                {resolution}
+              </span>
+            ) : null}
           </span>
-          <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">
-            {artifact.workspace}:{artifact.layerName} · {artifact.resolutionM ? `${artifact.resolutionM} m` : artifact.crs || "Raster"}
-          </span>
+          {descriptionExpanded ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                setDescriptionExpanded(false);
+              }}
+              className="mt-1 flex items-start gap-1 text-[11px] leading-4 text-muted-foreground hover:text-foreground w-full"
+            >
+              <Info className="mt-0.5 size-3 shrink-0 text-info" />
+              <span className="text-left">{describeArtifact(artifact)}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                setDescriptionExpanded(true);
+              }}
+              className="mt-1 flex items-center gap-1 text-[11px] leading-4 text-muted-foreground hover:text-foreground"
+            >
+              <ChevronDown className="size-3 shrink-0 text-info -rotate-90" />
+              <span>Hiển thị mô tả</span>
+            </button>
+          )}
+          <LegendPreview legend={legend} />
         </span>
-        {checked ? <Eye className="h-3.5 w-3.5 text-sky-600" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}
-      </label>
-      <Legend legend={legend} />
+        {checked ? (
+          <Eye className="size-3.5 text-info" />
+        ) : (
+          <EyeOff className="size-3.5 text-muted-foreground" />
+        )}
+      </Label>
+    </div>
+  );
+}
+
+function FloodHydrologySkeleton() {
+  return (
+    <div className="space-y-3" aria-label="Đang tải dữ liệu ngập lụt">
+      <Skeleton className="h-9 w-full" />
+      <Skeleton className="h-9 w-full" />
+      <div className="grid grid-cols-2 gap-2">
+        {Array.from({ length: 4 }, (_, index) => (
+          <Skeleton key={index} className="h-16 rounded-lg" />
+        ))}
+      </div>
+      <Skeleton className="h-24 rounded-lg" />
     </div>
   );
 }
@@ -148,164 +605,471 @@ export function FloodHydrology() {
   const [legends, setLegends] = useState([]);
   const [runs, setRuns] = useState([]);
   const [selectedModule, setSelectedModule] = useState("event");
+  const [selectedRunId, setSelectedRunId] = useState("");
   const [visibleIds, setVisibleIds] = useState(() => new Set());
+  const [noticeOpen, setNoticeOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const abortControllerRef = useRef(null);
+  const layersRef = useRef([]);
 
   const load = useCallback(async () => {
+    abortControllerRef.current?.abort();
     const controller = new AbortController();
+    abortControllerRef.current = controller;
     setLoading(true);
     setError("");
+
     try {
-      const [overviewResponse, layerResponse, legendResponse, runResponse] = await Promise.all([
-        getFloodOverview({ signal: controller.signal }),
-        getFloodLayers({ page: 1, limit: 100 }, { signal: controller.signal }),
-        getFloodLegends({ signal: controller.signal }),
-        getFloodRuns({ page: 1, limit: 50 }, { signal: controller.signal }),
-      ]);
+      const [overviewResponse, layerResponse, legendResponse, runResponse] =
+        await Promise.all([
+          getFloodOverview({ signal: controller.signal }),
+          getFloodLayers(
+            { page: 1, limit: 100 },
+            { signal: controller.signal },
+          ),
+          getFloodLegends({ signal: controller.signal }),
+          getFloodRuns({ page: 1, limit: 50 }, { signal: controller.signal }),
+        ]);
+
+      if (controller.signal.aborted) return;
       setOverview(unwrap(overviewResponse));
       setLayers(unwrap(layerResponse)?.items || []);
-      setLegends(Array.isArray(unwrap(legendResponse)) ? unwrap(legendResponse) : []);
+      setLegends(
+        Array.isArray(unwrap(legendResponse)) ? unwrap(legendResponse) : [],
+      );
       setRuns(unwrap(runResponse)?.items || []);
     } catch (requestError) {
-      if (requestError?.name !== "AbortError") {
-        setError(requestError?.message || "Không thể tải dữ liệu ngập lụt và thủy văn.");
+      if (!controller.signal.aborted && requestError?.name !== "AbortError") {
+        setError(
+          requestError?.message ||
+            "Không thể tải dữ liệu ngập lụt và thủy văn.",
+        );
       }
     } finally {
-      setLoading(false);
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+        setLoading(false);
+      }
     }
-    return () => controller.abort();
   }, []);
 
   useEffect(() => {
     load();
+    return () => {
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
+    };
   }, [load]);
 
   useEffect(() => {
-    return () => {
-      const { removeOgcLayerData } = useMapStore.getState();
-      for (const artifact of layers) {
-        removeOgcLayerData(buildOgcSourceId(toFloodMapLayer(artifact)));
-      }
-    };
+    layersRef.current = layers;
   }, [layers]);
+
+  useEffect(() => {
+    return () => removeFloodArtifacts(layersRef.current);
+  }, []);
 
   const legendsByCode = useMemo(
     () => new Map(legends.map((legend) => [legend.code, legend])),
     [legends],
   );
+
   const layerCounts = useMemo(() => {
     const result = Object.fromEntries(MODULES.map(({ code }) => [code, 0]));
-    layers.forEach((layer) => { result[layer.module] = (result[layer.module] || 0) + 1; });
+    layers.forEach((layer) => {
+      result[layer.module] = (result[layer.module] || 0) + 1;
+    });
     return result;
   }, [layers]);
-  const selectedLayers = useMemo(
-    () => layers.filter((layer) => layer.module === selectedModule && layer.layerName && layer.workspace),
-    [layers, selectedModule],
-  );
-  const selectedModuleInfo = MODULES.find(({ code }) => code === selectedModule);
-  const latestRun = overview?.modules?.[selectedModule] || runs.find((run) => run.module === selectedModule);
 
-  const toggleLayer = useCallback((artifact) => {
-    const mapLayer = toFloodMapLayer(artifact);
-    const sourceId = buildOgcSourceId(mapLayer);
+  const selectedModuleInfo =
+    MODULES.find(({ code }) => code === selectedModule) || MODULES[0];
+
+  const availableRuns = useMemo(
+    () => buildAvailableRuns(selectedModule, runs, layers, overview),
+    [layers, overview, runs, selectedModule],
+  );
+
+  const effectiveRunId = availableRuns.some(
+    (run) => normalizeId(run.id) === selectedRunId,
+  )
+    ? selectedRunId
+    : normalizeId(availableRuns[0]?.id);
+
+  const selectedRun =
+    availableRuns.find((run) => normalizeId(run.id) === effectiveRunId) || null;
+
+  const selectedLayers = useMemo(
+    () =>
+      layers
+        .filter(
+          (layer) =>
+            layer.module === selectedModule &&
+            normalizeId(layer.analysisRunId) === effectiveRunId &&
+            layer.layerName &&
+            layer.workspace,
+        )
+        .sort((left, right) => {
+          if (left.role === "QA" && right.role !== "QA") return 1;
+          if (left.role !== "QA" && right.role === "QA") return -1;
+          return (
+            (ARTIFACT_PRIORITY[left.code] || 99) -
+            (ARTIFACT_PRIORITY[right.code] || 99)
+          );
+        }),
+    [effectiveRunId, layers, selectedModule],
+  );
+
+  const selectedMetrics = useMemo(
+    () => getModuleMetrics(selectedModule, selectedRun),
+    [selectedModule, selectedRun],
+  );
+
+  const selectedPeriods = useMemo(
+    () => getAnalysisPeriods(selectedModule, selectedRun),
+    [selectedModule, selectedRun],
+  );
+
+  const selectedWarnings = useMemo(() => {
+    const metadataWarnings = runMetadata(selectedRun)?.warnings;
+    return [
+      ...(Array.isArray(selectedRun?.warnings) ? selectedRun.warnings : []),
+      ...(Array.isArray(metadataWarnings) ? metadataWarnings : []),
+    ].filter((warning, index, values) => values.indexOf(warning) === index);
+  }, [selectedRun]);
+
+  const visibleSelectedCount = selectedLayers.filter((layer) =>
+    visibleIds.has(layer.id),
+  ).length;
+  const allSelectedLayersVisible =
+    selectedLayers.length > 0 && visibleSelectedCount === selectedLayers.length;
+
+  const hideAllFloodLayers = useCallback(() => {
+    const visibleArtifacts = layers.filter((layer) => visibleIds.has(layer.id));
+    removeFloodArtifacts(visibleArtifacts);
+    setVisibleIds(new Set());
+  }, [layers, visibleIds]);
+
+  const handleModuleChange = useCallback(
+    (value) => {
+      hideAllFloodLayers();
+      setSelectedModule(value);
+      setSelectedRunId("");
+    },
+    [hideAllFloodLayers],
+  );
+
+  const handleRunChange = useCallback(
+    (value) => {
+      hideAllFloodLayers();
+      setSelectedRunId(value);
+    },
+    [hideAllFloodLayers],
+  );
+
+  const toggleLayer = useCallback(
+    (artifact) => {
+      const mapLayer = toFloodMapLayer(
+        artifact,
+        legendsByCode.get(artifact.code) || null,
+      );
+      const sourceId = buildOgcSourceId(mapLayer);
+      setVisibleIds((current) => {
+        const next = new Set(current);
+        if (next.has(artifact.id)) {
+          next.delete(artifact.id);
+          useMapStore.getState().removeOgcLayerData(sourceId);
+        } else {
+          next.add(artifact.id);
+          useMapStore.getState().setOgcLayerData(sourceId, mapLayer);
+        }
+        return next;
+      });
+    },
+    [legendsByCode],
+  );
+
+  const toggleAllSelectedLayers = useCallback(() => {
+    const { removeOgcLayerData, setOgcLayerData } = useMapStore.getState();
     setVisibleIds((current) => {
       const next = new Set(current);
-      if (next.has(artifact.id)) {
-        next.delete(artifact.id);
-        useMapStore.getState().removeOgcLayerData(sourceId);
-      } else {
-        next.add(artifact.id);
-        useMapStore.getState().setOgcLayerData(sourceId, mapLayer);
-      }
+      selectedLayers.forEach((artifact) => {
+        const mapLayer = toFloodMapLayer(
+          artifact,
+          legendsByCode.get(artifact.code) || null,
+        );
+        const sourceId = buildOgcSourceId(mapLayer);
+        if (allSelectedLayersVisible) {
+          next.delete(artifact.id);
+          removeOgcLayerData(sourceId);
+        } else if (!next.has(artifact.id)) {
+          next.add(artifact.id);
+          setOgcLayerData(sourceId, mapLayer);
+        }
+      });
       return next;
     });
-  }, []);
+  }, [allSelectedLayersVisible, legendsByCode, selectedLayers]);
+
+  const initialLoading =
+    loading && !overview && layers.length === 0 && runs.length === 0;
 
   return (
-    <div className="@container/flood flex min-h-full min-w-0 flex-col gap-3 px-1 pb-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-foreground @[360px]/flood:text-lg">
-            <Waves className="h-5 w-5 shrink-0 text-sky-600" />
-            Ngập lụt và thủy văn
-          </h2>
-          <p className="mt-1 text-[11px] text-muted-foreground">
-            Cẩm Phả · Sentinel-1, HAND, mưa, tác động và xu thế
-          </p>
-        </div>
-        <Button type="button" variant="ghost" size="xs" onClick={load} disabled={loading} aria-label="Cập nhật dữ liệu ngập lụt">
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-        </Button>
-      </div>
-
-      <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-[11px] leading-5 text-sky-950 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-100">
-        <b>M3 là chỉ số nguy cơ tương đối, không phải xác suất ngập.</b> Các lớp QA chỉ dùng để kiểm tra chất lượng; cần đối chiếu hiện trường trước khi ra quyết định.
-      </div>
-
-      {error ? (
-        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{error}</span>
-        </div>
-      ) : null}
-
-      {loading && !overview ? (
-        <div className="flex flex-1 items-center justify-center py-10">
-          <Loader2 className="h-6 w-6 animate-spin text-sky-600" />
-        </div>
-      ) : (
-        <>
-          <div className="space-y-2">
-            {MODULES.map((module) => (
-              <ModuleCard
-                key={module.code}
-                module={module}
-                latest={overview?.modules?.[module.code]}
-                layerCount={layerCounts[module.code] || 0}
-                active={selectedModule === module.code}
-                onClick={() => setSelectedModule(module.code)}
-              />
-            ))}
+    <div className="flex min-w-0 flex-col gap-3 pb-3">
+      <Card variant="gradient-panel" className="gap-0 overflow-hidden py-0">
+        <CardHeader className="border-b border-(--gradient-surface-panel-border) px-3 py-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-(--gradient-surface-panel-wash-strong)">
+              <Waves className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <CardTitle className="text-sm">Ngập lụt và thủy văn</CardTitle>
+              <CardDescription className="mt-1 whitespace-normal text-[11px] text-(--gradient-surface-panel-muted)">
+                TP Cẩm Phả · Dữ liệu phân tích M1–M5
+              </CardDescription>
+            </div>
           </div>
+          <CardAction>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  className="text-(--gradient-surface-panel-foreground) hover:bg-(--gradient-surface-panel-wash-strong) hover:text-(--gradient-surface-panel-foreground)"
+                  onClick={load}
+                  disabled={loading}
+                  aria-label="Tải lại dữ liệu ngập lụt"
+                >
+                  {loading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="size-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left">Tải lại dữ liệu</TooltipContent>
+            </Tooltip>
+          </CardAction>
+        </CardHeader>
 
-          <Card className="gap-3 py-3">
-            <CardHeader className="px-3">
-              <CardTitle className="flex items-center justify-between gap-2 text-sm">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <Layers3 className="h-4 w-4 shrink-0 text-sky-600" />
-                  <span className="truncate">{selectedModuleInfo?.short} · {selectedModuleInfo?.label}</span>
-                </span>
-                <StatusBadge status={latestRun?.status} />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 px-3">
-              {latestRun?.finishedAt ? (
-                <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                  <Clock3 className="h-3 w-3" /> Cập nhật {formatDateTime(latestRun.finishedAt)}
-                </p>
-              ) : null}
-              {(latestRun?.warnings || []).map((warning, index) => (
-                <p key={index} className="text-[10px] leading-4 text-warning-foreground">• {String(warning)}</p>
-              ))}
-              {selectedLayers.length ? selectedLayers.map((artifact) => (
-                <LayerRow
-                  key={artifact.id}
-                  artifact={artifact}
-                  legend={legendsByCode.get(artifact.code)}
-                  checked={visibleIds.has(artifact.id)}
-                  onToggle={() => toggleLayer(artifact)}
-                />
-              )) : (
-                <div className="py-6 text-center text-muted-foreground">
-                  <BarChart3 className="mx-auto h-8 w-8 opacity-30" />
-                  <p className="mt-2 text-xs">Chưa có lớp sản phẩm đã công bố cho mô-đun này.</p>
+        <CardContent className="space-y-4 bg-card px-3 py-3 text-card-foreground">
+          {error ? (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive"
+            >
+              <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
+              <span className="leading-4">{error}</span>
+            </div>
+          ) : null}
+
+          {initialLoading ? (
+            <FloodHydrologySkeleton />
+          ) : (
+            <>
+              <section className="space-y-3" aria-label="Chọn dữ liệu ngập lụt">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <StepLabel step="1" htmlFor="flood-module-select">
+                      Chọn mô-đun
+                    </StepLabel>
+                    <Badge variant="outline" className="text-[10px]">
+                      {layerCounts[selectedModule] || 0} lớp
+                    </Badge>
+                  </div>
+                  <Select
+                    value={selectedModule}
+                    onValueChange={handleModuleChange}
+                    disabled={loading && !overview}
+                  >
+                    <SelectTrigger
+                      id="flood-module-select"
+                      size="sm"
+                      variant="filled"
+                      className="w-full text-xs"
+                      aria-label="Chọn mô-đun phân tích ngập lụt"
+                    >
+                      <SelectValue placeholder="Chọn mô-đun" />
+                    </SelectTrigger>
+                    <SelectContent position="popper" align="start">
+                      {MODULES.map((module) => (
+                        <SelectItem key={module.code} value={module.code}>
+                          {module.short} · {module.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="pl-7 text-[10px] leading-4 text-muted-foreground">
+                    {selectedModuleInfo.description}
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <StepLabel step="2" htmlFor="flood-period-select">
+                      Chọn kỳ xuất hiện
+                    </StepLabel>
+                    <Badge variant="outline" className="text-[10px]">
+                      {availableRuns.length} kỳ
+                    </Badge>
+                  </div>
+                  <Select
+                    value={effectiveRunId}
+                    onValueChange={handleRunChange}
+                    disabled={!availableRuns.length || loading}
+                  >
+                    <SelectTrigger
+                      id="flood-period-select"
+                      size="sm"
+                      variant="filled"
+                      isLoading={loading && availableRuns.length > 0}
+                      className="w-full text-xs"
+                      aria-label="Chọn kỳ xuất hiện ngập lụt"
+                    >
+                      <SelectValue placeholder="Chưa có kỳ dữ liệu" />
+                    </SelectTrigger>
+                    <SelectContent
+                      position="popper"
+                      align="start"
+                      className="max-h-64"
+                    >
+                      {availableRuns.map((run, index) => (
+                        <SelectItem key={run.id} value={normalizeId(run.id)}>
+                          {formatDateTime(run.finishedAt || run.publishedAt)}
+                          {index === 0 ? " · mới nhất" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </section>
+
+              <div
+                role="note"
+                className="rounded-lg border border-info/25 bg-(--info-subtle) text-(--info-subtle-foreground)"
+              >
+                <button
+                  type="button"
+                  onClick={() => setNoticeOpen((open) => !open)}
+                  aria-expanded={noticeOpen}
+                  className="flex w-full items-center gap-2 p-2.5 text-left"
+                >
+                  <Info className="size-3.5 shrink-0 text-info" />
+                  <span className="flex-1 text-[11px] font-medium leading-4">
+                    Lưu ý về mô-đun
+                  </span>
+                  <ChevronDown
+                    className={`size-3.5 shrink-0 text-info transition-transform ${
+                      noticeOpen ? "" : "-rotate-90"
+                    }`}
+                  />
+                </button>
+                {noticeOpen ? (
+                  <p className="border-t border-info/25 px-2.5 py-2 text-[11px] leading-4">
+                    {selectedModuleInfo.notice}
+                  </p>
+                ) : null}
+              </div>
+
+              {selectedRun ? (
+                <section className="space-y-3" aria-label="Kết quả kỳ đã chọn">
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-muted/20 p-2">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <Clock3 className="size-3.5 shrink-0 text-info" />
+                      <span className="truncate text-[10px] text-muted-foreground">
+                        Cập nhật {formatDateTime(selectedRun.finishedAt)}
+                      </span>
+                    </div>
+                    <StatusBadge status={selectedRun.status} />
+                  </div>
+
+                  {selectedPeriods.length ? (
+                    <div
+                      className="space-y-1.5 rounded-lg border border-info/20 bg-(--info-subtle) p-2.5"
+                      aria-label="Kỳ phân tích"
+                    >
+                      {selectedPeriods.map((period) => (
+                        <div
+                          key={period.label}
+                          className="flex items-center justify-between gap-2 text-[11px]"
+                        >
+                          <span className="flex items-center gap-1.5 text-muted-foreground">
+                            <CalendarDays className="size-3 shrink-0 text-info" />
+                            {period.label}
+                          </span>
+                          <span className="font-medium text-(--info-subtle-foreground)">
+                            {period.value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  <MetricGrid metrics={selectedMetrics} />
+                </section>
+              ) : (
+                <div className="rounded-lg border border-dashed border-border p-5 text-center text-muted-foreground">
+                  <CalendarDays className="mx-auto size-7 opacity-30" />
+                  <p className="mt-2 text-xs">
+                    Chưa có kỳ dữ liệu cho mô-đun này.
+                  </p>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </>
-      )}
+
+              {selectedRun ? (
+                <section
+                  className="space-y-2"
+                  aria-label="Lớp bản đồ của kỳ đã chọn"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <StepLabel step="3">Chọn lớp bản đồ</StepLabel>
+                    {selectedLayers.length ? (
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant={
+                          allSelectedLayersVisible ? "soft-info" : "outline"
+                        }
+                        onClick={toggleAllSelectedLayers}
+                      >
+                        {allSelectedLayersVisible ? (
+                          <EyeOff className="size-3" />
+                        ) : (
+                          <Eye className="size-3" />
+                        )}
+                        {allSelectedLayersVisible ? "Ẩn tất cả" : "Hiện tất cả"}
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  {selectedLayers.length ? (
+                    selectedLayers.map((artifact) => (
+                      <LayerRow
+                        key={artifact.id}
+                        artifact={artifact}
+                        legend={legendsByCode.get(artifact.code)}
+                        checked={visibleIds.has(artifact.id)}
+                        onToggle={() => toggleLayer(artifact)}
+                      />
+                    ))
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-border py-6 text-center text-muted-foreground">
+                      <BarChart3 className="mx-auto size-8 opacity-30" />
+                      <p className="mt-2 px-3 text-xs">
+                        {selectedModule === "impact"
+                          ? "Kỳ này cung cấp số liệu tác động và không phát hành lớp raster công khai."
+                          : "Chưa có lớp bản đồ được công bố cho kỳ này."}
+                      </p>
+                    </div>
+                  )}
+                </section>
+              ) : null}
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createRoot } from "react-dom/client";
 import mapboxgl from "mapbox-gl";
 import MapboxCompare from "mapbox-gl-compare";
 import {
@@ -19,6 +20,7 @@ import {
   addSatelliteLayerToMap,
   updateSatelliteLayerOpacity,
   toggleSatelliteLayerVisibility,
+  removeSatelliteLayerFromMap,
   addOrUpdateCategoryLayer,
   addOrUpdateGeoServerLayer,
   buildOgcFeatureInfoUrl,
@@ -31,18 +33,19 @@ import {
   clearHighlightFromMap,
 } from "@/helper/Map/MapHelper";
 import {
-  addOrUpdateTimeSeriesLayer,
-  removeTimeSeriesLayer,
-} from "@/helper/Map/geoserver/timeSeries";
-import {
   MapToolbar,
   MapStatusBar,
   AQIPopup,
-  SatelliteLegend,
+  MapLegend,
 } from "@/components/Map/FloatTool";
 import { useMeasurementOverlay } from "@/helper/Map/useMeasurementOverlay";
 import { useModalMapLayerStore } from "@/stores/Map/useModalMapLayerStore";
 import MapLayerDetailModal from "@/components/Map/MapLayerDetailModal";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -74,7 +77,6 @@ const mapOgcFeatureToModalData = (feature, layer) => ({
   name: getFeatureDisplayName(feature, layer),
   description: layer?.description,
   category: layer?.category,
-  layer_group: layer?.layer_group,
   geometry_type: layer?.geometry_type || feature?.geometry?.type,
   geometry_data: feature?.geometry,
   default_style: layer?.default_style || {},
@@ -91,7 +93,8 @@ export default function MapComponent() {
   const singleMapContainerRef = useRef(null);
   const splitMapContainerRef = useRef(null);
   const compareInitTimerRef = useRef(null);
-  const { setMapRef, setClickedPoint } = useMapStore();
+  const setMapRef = useMapStore((state) => state.setMapRef);
+  const setClickedPoint = useMapStore((state) => state.setClickedPoint);
   const mapRef = useRef({
     single: null, // map đơn
     split: null, // map phải
@@ -120,6 +123,9 @@ export default function MapComponent() {
     single: false,
     split: false,
   });
+  // setStyle removes custom sources/layers. Increment after every style load so
+  // both maps re-apply the latest satellite, category, and OGC layer state.
+  const [mapLayerRevision, setMapLayerRevision] = useState(0);
   const pending3DApplyRef = useRef({
     single: false,
     split: false,
@@ -151,9 +157,13 @@ export default function MapComponent() {
     }
   }, [setTerrainLoading]);
 
-  //  mode
   const clickedPointMode = useMapStyleStore((s) => s.clickedPointMode);
   const isSplitMode = useMapStore((s) => s.isSplitMode);
+  const isSplitModeRef = useRef(isSplitMode);
+
+  useEffect(() => {
+    isSplitModeRef.current = isSplitMode;
+  }, [isSplitMode]);
 
   // satellite state
   const satelliteLayers = useSatelliteStore((s) => s.satelliteLayers);
@@ -161,19 +171,14 @@ export default function MapComponent() {
   // Category layers & highlight - MUST declare before used in effects
   const categoryLayersData = useMapStore((s) => s.categoryLayersData);
   const ogcLayersData = useMapStore((s) => s.ogcLayersData);
-  const timeSeriesLayersData = useMapStore((s) => s.timeSeriesLayersData);
   const categoryLayersDataRef = useRef(categoryLayersData);
   const ogcLayersDataRef = useRef(ogcLayersData);
-  const timeSeriesLayersDataRef = useRef(timeSeriesLayersData);
   useEffect(() => {
     categoryLayersDataRef.current = categoryLayersData;
   }, [categoryLayersData]);
   useEffect(() => {
     ogcLayersDataRef.current = ogcLayersData;
   }, [ogcLayersData]);
-  useEffect(() => {
-    timeSeriesLayersDataRef.current = timeSeriesLayersData;
-  }, [timeSeriesLayersData]);
   const highlightedFeature = useMapStore((s) => s.highlightedFeature);
 
   // draw state
@@ -237,15 +242,18 @@ export default function MapComponent() {
       preserveDrawingBuffer: true,
     });
 
-    // Ẩn split map ban đầu
+    // Ẩn split map ban đầu.
     mapRef.current.split.getContainer().style.display = "none";
 
-    // Use single map as main reference
     const map = mapRef.current.single;
+    const mapBounds = [
+      [defaultLatLong.lng - mapDelta, defaultLatLong.lat - mapDelta],
+      [defaultLatLong.lng + mapDelta, defaultLatLong.lat + mapDelta],
+    ];
 
     const handleSingleLoad = () => {
       setMapRef(map);
-      // Store full mapRef so satellite store can access single/split maps without prop drilling
+      // Store full mapRef so satellite store can access single/split maps.
       useMapStore.getState().setMapRefObj(mapRef);
 
       drawRef.current = initializeDraw(
@@ -255,14 +263,9 @@ export default function MapComponent() {
         handleDrawDelete,
       );
 
-      const center = map.getCenter();
-      const mapBounds = [
-        [center.lng - mapDelta, center.lat - mapDelta],
-        [center.lng + mapDelta, center.lat + mapDelta],
-      ];
       map.setMaxBounds(mapBounds);
 
-      // Add Map Controls (only to single map)
+      // Add Map Controls (only to single map).
       map.addControl(new mapboxgl.FullscreenControl(), "bottom-right");
       map.addControl(
         new ResetControl(() => useMapStyleStore.getState().terrainState),
@@ -273,34 +276,27 @@ export default function MapComponent() {
     };
 
     const handleSplitLoad = () => {
+      mapRef.current.split?.setMaxBounds(mapBounds);
       setMapsReady((prev) => ({ ...prev, split: true }));
     };
 
     map.on("load", handleSingleLoad);
     mapRef.current.split.on("load", handleSplitLoad);
 
-    map.on("move", () => {
+    const handleSingleMove = () => {
       const center = map.getCenter();
       setMapState({
         lat: center.lat,
         lng: center.lng,
         zoom: map.getZoom(),
       });
+    };
+    const markMapLayersStale = () =>
+      setMapLayerRevision((value) => value + 1);
 
-      // Sync split map when in compare mode
-      if (
-        isSplitMode &&
-        mapRef.current.split &&
-        mapRef.current.split.isStyleLoaded()
-      ) {
-        mapRef.current.split.jumpTo({
-          center: map.getCenter(),
-          zoom: map.getZoom(),
-          pitch: map.getPitch(),
-          bearing: map.getBearing(),
-        });
-      }
-    });
+    map.on("move", handleSingleMove);
+    map.on("style.load", markMapLayersStale);
+    mapRef.current.split.on("style.load", markMapLayersStale);
 
     return () => {
       const mapStore = useMapStore.getState();
@@ -311,6 +307,17 @@ export default function MapComponent() {
         mapStore.setMapRefObj(null);
       }
 
+      map.off("move", handleSingleMove);
+      map.off("style.load", markMapLayersStale);
+      mapRef.current.split?.off("style.load", markMapLayersStale);
+      if (compareInitTimerRef.current) {
+        window.clearTimeout(compareInitTimerRef.current);
+        compareInitTimerRef.current = null;
+      }
+      if (mapRef.current.compare) {
+        mapRef.current.compare.remove();
+        mapRef.current.compare = null;
+      }
       if (mapRef.current.single) {
         mapRef.current.single.remove();
         mapRef.current.single = null;
@@ -324,7 +331,7 @@ export default function MapComponent() {
     };
   }, []);
 
-  // Handle MapboxCompare toggle for Compare Mode
+  // Handle MapboxCompare toggle for Compare Mode.
   useEffect(() => {
     if (!mapsReady.single || !mapsReady.split) return;
 
@@ -332,100 +339,160 @@ export default function MapComponent() {
     if (!single || !split) return;
 
     if (isSplitMode) {
-      // Show split map
-      split.getContainer().style.display = "block";
+      let disposed = false;
 
-      // Wait a bit for DOM to update, then resize
-      if (compareInitTimerRef.current) {
-        window.clearTimeout(compareInitTimerRef.current);
-      }
+      const activateCompare = () => {
+        if (
+          disposed ||
+          !useMapStore.getState().isSplitMode ||
+          !split.isStyleLoaded()
+        ) {
+          return;
+        }
 
-      compareInitTimerRef.current = window.setTimeout(() => {
-        split.resize();
+        split.getContainer().style.display = "block";
+        if (compareInitTimerRef.current) {
+          window.clearTimeout(compareInitTimerRef.current);
+        }
 
-        // Sync camera with single map
-        const camera = {
-          center: single.getCenter(),
-          zoom: single.getZoom(),
-          pitch: single.getPitch(),
-          bearing: single.getBearing(),
-        };
-        split.jumpTo(camera);
+        // Chờ container trở lại layout trước khi resize và khởi tạo slider.
+        compareInitTimerRef.current = window.setTimeout(() => {
+          compareInitTimerRef.current = null;
+          if (disposed || !useMapStore.getState().isSplitMode) return;
 
-        // Create Compare slider if not exists
-        if (!mapRef.current.compare) {
-          try {
-            mapRef.current.compare = new MapboxCompare(
-              single,
-              split,
-              mapContainer.current,
-            );
-          } catch (error) {
-            console.error(
-              "[MapComponent] Failed to initialize map compare:",
-              error,
-            );
+          split.resize();
+          split.jumpTo({
+            center: single.getCenter(),
+            zoom: single.getZoom(),
+            pitch: single.getPitch(),
+            bearing: single.getBearing(),
+          });
+
+          if (!mapRef.current.compare) {
+            try {
+              mapRef.current.compare = new MapboxCompare(
+                single,
+                split,
+                mapContainer.current,
+              );
+            } catch (error) {
+              console.error(
+                "[MapComponent] Failed to initialize map compare:",
+                error,
+              );
+            }
           }
-        }
-      }, 100);
-    } else {
-      if (compareInitTimerRef.current) {
-        window.clearTimeout(compareInitTimerRef.current);
-        compareInitTimerRef.current = null;
+        }, 100);
+      };
+
+      if (split.isStyleLoaded()) {
+        activateCompare();
+      } else {
+        split.once("style.load", activateCompare);
       }
 
-      // Hide split map and remove compare
-      split.getContainer().style.display = "none";
-
-      if (mapRef.current.compare) {
-        try {
-          mapRef.current.compare.remove();
-        } catch (error) {
-          console.error("[MapComponent] Failed to remove map compare:", error);
+      return () => {
+        disposed = true;
+        split.off("style.load", activateCompare);
+        if (compareInitTimerRef.current) {
+          window.clearTimeout(compareInitTimerRef.current);
+          compareInitTimerRef.current = null;
         }
-        mapRef.current.compare = null;
-      }
+      };
     }
 
-    return () => {
-      if (compareInitTimerRef.current) {
-        window.clearTimeout(compareInitTimerRef.current);
-        compareInitTimerRef.current = null;
+    if (mapRef.current.compare) {
+      try {
+        mapRef.current.compare.remove();
+      } catch (error) {
+        console.error("[MapComponent] Failed to remove map compare:", error);
       }
-    };
+      mapRef.current.compare = null;
+    }
+    split.getContainer().style.display = "none";
   }, [isSplitMode, mapsReady.single, mapsReady.split]);
 
   // Handle satellite layers
   useEffect(() => {
-    if (!mapsReady.single || !mapsReady.split || satelliteLayers.length === 0)
-      return;
+    if (!mapsReady.single || !mapsReady.split) return;
 
     const { single, split } = mapRef.current;
     if (!single || !split) return;
 
-    // Xử lý từng layer
-    satelliteLayers.forEach((layer) => {
-      const targetMap =
-        layer.splitSide === "right" || layer.splitSide === "change"
-          ? split
-          : single;
+    const removeStaleLayers = (targetMap, wantedLayers) => {
+      const wantedIds = new Set(wantedLayers.map((layer) => layer.id));
+      (targetMap.getStyle()?.layers || [])
+        .filter((layer) => layer.id.startsWith("satellite-") && !wantedIds.has(layer.id))
+        .forEach((layer) =>
+          removeSatelliteLayerFromMap(targetMap, layer.id, layer.source),
+        );
+    };
+    const cleanupCallbacks = [];
+    const syncMapLayers = (targetMap, wantedLayers) => {
+      const applyLayers = () => {
+        if (!targetMap || targetMap._removed || !targetMap.getStyle()) return;
 
-      const layerId = layer.id; // layer.id is already in format 'satellite-{id}'
-      const layerExists = targetMap.getLayer(layerId);
+        removeStaleLayers(targetMap, wantedLayers);
+        wantedLayers.forEach((layer) => {
+          if (targetMap.getLayer(layer.id) || !layer.layerData?.tileUrl) return;
 
-      if (layerExists) return;
+          addSatelliteLayerToMap(
+            targetMap,
+            layer.layerData,
+            layer.id,
+            layer.layerOpacity ?? 1,
+            layer.sourceId,
+            layer.visible !== false,
+          );
+        });
+        targetMap.triggerRepaint();
+      };
 
-      if (!targetMap.isStyleLoaded()) return;
-
-      if (!layer.layerData || !layer.layerData.tileUrl) return;
-
-      try {
-        addSatelliteLayerToMap(targetMap, layer.layerData, layer.id);
-      } catch {
-        // ignore
+      if (targetMap.isStyleLoaded()) {
+        applyLayers();
+        return;
       }
-    });
-  }, [satelliteLayers, mapsReady.single, mapsReady.split]);
+
+      // GEE có thể hoàn tất đúng lúc Mapbox đang tải/thay style. Chờ bản đồ
+      // sẵn sàng thay vì bỏ luôn response đã tải thành công.
+      const handleReady = () => {
+        if (!targetMap.isStyleLoaded()) return;
+        targetMap.off("style.load", handleReady);
+        targetMap.off("idle", handleReady);
+        applyLayers();
+      };
+      targetMap.on("style.load", handleReady);
+      targetMap.on("idle", handleReady);
+      cleanupCallbacks.push(() => {
+        targetMap.off("style.load", handleReady);
+        targetMap.off("idle", handleReady);
+      });
+    };
+
+    const leftLayers = satelliteLayers.filter(
+      (layer) => layer.splitSide !== "right" && layer.splitSide !== "change",
+    );
+    const rightLayers = satelliteLayers.filter(
+      (layer) => layer.splitSide === "right",
+    );
+    const changeLayers = satelliteLayers.filter(
+      (layer) => layer.splitSide === "change",
+    );
+
+    syncMapLayers(single, [...leftLayers, ...changeLayers]);
+    syncMapLayers(
+      split,
+      isSplitMode ? [...rightLayers, ...changeLayers] : [],
+    );
+
+    return () => cleanupCallbacks.forEach((cleanup) => cleanup());
+  }, [
+    satelliteLayers,
+    mapsReady.single,
+    mapsReady.split,
+    mapLayerRevision,
+    isSplitMode,
+  ]);
 
   // Handle satellite layer opacity & visibility updates
   useEffect(() => {
@@ -441,20 +508,23 @@ export default function MapComponent() {
       const visible = layer.visible !== false; // Default to visible
 
       // Update based on splitSide
-      if (layer.splitSide === "right" || layer.splitSide === "change") {
-        // Update on split map only
+      if (layer.splitSide === "right") {
         if (split && split.getLayer(layerId)) {
           updateSatelliteLayerOpacity(split, layerId, opacity);
           toggleSatelliteLayerVisibility(split, layerId, visible);
         }
+      } else if (layer.splitSide === "change") {
+        [single, split].forEach((targetMap) => {
+          if (!targetMap?.getLayer(layerId)) return;
+          updateSatelliteLayerOpacity(targetMap, layerId, opacity);
+          toggleSatelliteLayerVisibility(targetMap, layerId, visible);
+        });
       } else if (layer.splitSide === "left") {
-        // Update on single map only
         if (single && single.getLayer(layerId)) {
           updateSatelliteLayerOpacity(single, layerId, opacity);
           toggleSatelliteLayerVisibility(single, layerId, visible);
         }
       } else {
-        // Update on both maps (default behavior)
         if (single && single.getLayer(layerId)) {
           updateSatelliteLayerOpacity(single, layerId, opacity);
           toggleSatelliteLayerVisibility(single, layerId, visible);
@@ -567,21 +637,12 @@ export default function MapComponent() {
         },
       );
 
-      Object.entries(timeSeriesLayersDataRef.current || {}).forEach(
-        ([groupCode, entry]) => {
-          if (entry?.tileUrl) {
-            addOrUpdateTimeSeriesLayer(map, groupCode, {
-              tileUrl: entry.tileUrl,
-              opacity: entry.opacity,
-            });
-          }
-        },
-      );
     };
 
     // SETUP LISTENER BEFORE calling setStyle!
     mapRef.current.single.once("style.load", onStyleLoad);
     mapRef.current.single.setStyle(nextMapStyle, {
+      diff: false,
       transformStyle,
     });
 
@@ -589,9 +650,23 @@ export default function MapComponent() {
       const onSplitStyleLoad = () => {
         const latestData = categoryLayersDataRef.current;
         const splitMap = mapRef.current.split;
+        const latestOgcData = ogcLayersDataRef.current || {};
+
+        // Keep the split map warm, but remove business-data sources while it
+        // is hidden so they cannot continue requesting WMS tiles or WFS data.
+        if (!useMapStore.getState().isSplitMode) {
+          Object.keys(latestData || {}).forEach((sourceId) => {
+            removeCategoryLayer(splitMap, sourceId);
+          });
+          Object.keys(latestOgcData).forEach((sourceId) => {
+            removeGeoServerLayer(splitMap, sourceId);
+          });
+          return;
+        }
+
         Object.entries(latestData || {}).forEach(
           ([sourceId, { geojson, geometryType, color, icon }]) => {
-            addOrUpdateCategoryLayer(
+            const addLayer = addOrUpdateCategoryLayer(
               splitMap,
               sourceId,
               geojson,
@@ -600,28 +675,40 @@ export default function MapComponent() {
               true,
               icon,
             );
+            void Promise.resolve(addLayer).then(() => {
+              const latestState = useMapStore.getState();
+              if (
+                !latestState.isSplitMode ||
+                !latestState.categoryLayersData[sourceId]
+              ) {
+                removeCategoryLayer(splitMap, sourceId);
+              }
+            });
           },
         );
 
-        Object.entries(ogcLayersDataRef.current || {}).forEach(
-          ([sourceId, layer]) => {
-            addOrUpdateGeoServerLayer(splitMap, sourceId, layer, true);
-          },
-        );
-
-        Object.entries(timeSeriesLayersDataRef.current || {}).forEach(
-          ([groupCode, entry]) => {
-            if (entry?.tileUrl) {
-              addOrUpdateTimeSeriesLayer(splitMap, groupCode, {
-                tileUrl: entry.tileUrl,
-                opacity: entry.opacity,
-              });
+        Object.entries(latestOgcData).forEach(([sourceId, layer]) => {
+          const addLayer = addOrUpdateGeoServerLayer(
+            splitMap,
+            sourceId,
+            layer,
+            true,
+          );
+          void Promise.resolve(addLayer).then(() => {
+            const latestState = useMapStore.getState();
+            if (
+              !latestState.isSplitMode ||
+              !latestState.ogcLayersData[sourceId]
+            ) {
+              removeGeoServerLayer(splitMap, sourceId);
             }
-          },
-        );
+          });
+        });
       };
+
       mapRef.current.split.once("style.load", onSplitStyleLoad);
       mapRef.current.split.setStyle(nextMapStyle, {
+        diff: false,
         transformStyle,
       });
     }
@@ -636,6 +723,11 @@ export default function MapComponent() {
       if (!map) {
         pending3DApplyRef.current[target] = false;
         return false;
+      }
+
+      if (target === "split" && !isSplitModeRef.current) {
+        pending3DApplyRef.current.split = false;
+        return true;
       }
 
       if (!map.isStyleLoaded()) {
@@ -779,14 +871,17 @@ export default function MapComponent() {
 
   // ─── Category Layers Effect ─────────────────────────────────────────
   // Đồng bộ categoryLayersData từ useMapStore lên map
-  const prevCategoryKeysRef = useRef(new Set());
+  const prevCategoryKeysRef = useRef({
+    single: new Set(),
+    split: new Set(),
+  });
 
   useEffect(() => {
     const map = mapRef.current.single;
     if (!map || !mapsReady.single) return;
 
     const currentKeys = new Set(Object.keys(categoryLayersData));
-    const prevKeys = prevCategoryKeysRef.current;
+    const prevKeys = prevCategoryKeysRef.current.single;
 
     // Thêm/cập nhật các layers mới hoặc thay đổi trên single map
     currentKeys.forEach((sourceId) => {
@@ -808,47 +903,82 @@ export default function MapComponent() {
       if (!currentKeys.has(sourceId)) removeCategoryLayer(map, sourceId);
     });
 
-    // Đồng bộ lên split map (luôn luôn, không phụ thuộc vào isSplitMode)
     const splitMap = mapRef.current.split;
-    if (splitMap) {
-      const applyToSplit = () => {
-        currentKeys.forEach((sourceId) => {
-          const { geojson, geometryType, color, icon } =
-            categoryLayersData[sourceId];
-          addOrUpdateCategoryLayer(
-            splitMap,
-            sourceId,
-            geojson,
-            geometryType,
-            color,
-            true,
-            icon,
-          );
-        });
-        prevKeys.forEach((sourceId) => {
-          if (!currentKeys.has(sourceId))
-            removeCategoryLayer(splitMap, sourceId);
-        });
-      };
-
-      if (splitMap.isStyleLoaded()) {
-        applyToSplit();
-      } else {
-        splitMap.once("style.load", applyToSplit);
-      }
+    if (!splitMap || !mapsReady.split) {
+      prevCategoryKeysRef.current.single = currentKeys;
+      return;
     }
 
-    prevCategoryKeysRef.current = currentKeys;
-  }, [categoryLayersData, mapsReady.single]);
+    const syncSplitLayers = () => {
+      const latestState = useMapStore.getState();
+      const latestData = latestState.categoryLayersData || {};
+      const latestKeys = new Set(Object.keys(latestData));
+      const prevSplitKeys = prevCategoryKeysRef.current.split;
 
-  const prevOgcKeysRef = useRef(new Set());
+      if (!latestState.isSplitMode) {
+        new Set([...prevSplitKeys, ...latestKeys]).forEach((sourceId) => {
+          removeCategoryLayer(splitMap, sourceId);
+        });
+        prevCategoryKeysRef.current.split = new Set();
+        return;
+      }
+
+      latestKeys.forEach((sourceId) => {
+        const { geojson, geometryType, color, icon } = latestData[sourceId];
+        const addLayer = addOrUpdateCategoryLayer(
+          splitMap,
+          sourceId,
+          geojson,
+          geometryType,
+          color,
+          true,
+          icon,
+        );
+        void Promise.resolve(addLayer).then(() => {
+          const stateAfterAdd = useMapStore.getState();
+          if (
+            !stateAfterAdd.isSplitMode ||
+            !stateAfterAdd.categoryLayersData[sourceId]
+          ) {
+            removeCategoryLayer(splitMap, sourceId);
+          }
+        });
+      });
+      prevSplitKeys.forEach((sourceId) => {
+        if (!latestKeys.has(sourceId)) {
+          removeCategoryLayer(splitMap, sourceId);
+        }
+      });
+      prevCategoryKeysRef.current.split = latestKeys;
+    };
+
+    if (splitMap.isStyleLoaded()) {
+      syncSplitLayers();
+    } else {
+      splitMap.once("style.load", syncSplitLayers);
+    }
+
+    prevCategoryKeysRef.current.single = currentKeys;
+    return () => splitMap.off("style.load", syncSplitLayers);
+  }, [
+    categoryLayersData,
+    isSplitMode,
+    mapsReady.single,
+    mapsReady.split,
+    mapLayerRevision,
+  ]);
+
+  const prevOgcKeysRef = useRef({
+    single: new Set(),
+    split: new Set(),
+  });
 
   useEffect(() => {
     const map = mapRef.current.single;
     if (!map || !mapsReady.single) return;
 
     const currentKeys = new Set(Object.keys(ogcLayersData));
-    const prevKeys = prevOgcKeysRef.current;
+    const prevKeys = prevOgcKeysRef.current.single;
 
     currentKeys.forEach((sourceId) => {
       addOrUpdateGeoServerLayer(map, sourceId, ogcLayersData[sourceId], true);
@@ -861,82 +991,65 @@ export default function MapComponent() {
     });
 
     const splitMap = mapRef.current.split;
-    if (splitMap) {
-      const applyToSplit = () => {
-        currentKeys.forEach((sourceId) => {
-          addOrUpdateGeoServerLayer(
-            splitMap,
-            sourceId,
-            ogcLayersData[sourceId],
-            true,
-          );
+    if (!splitMap || !mapsReady.split) {
+      prevOgcKeysRef.current.single = currentKeys;
+      return;
+    }
+
+    const syncSplitLayers = () => {
+      const latestState = useMapStore.getState();
+      const latestData = latestState.ogcLayersData || {};
+      const latestKeys = new Set(Object.keys(latestData));
+      const prevSplitKeys = prevOgcKeysRef.current.split;
+
+      if (!latestState.isSplitMode) {
+        new Set([...prevSplitKeys, ...latestKeys]).forEach((sourceId) => {
+          removeGeoServerLayer(splitMap, sourceId);
         });
-        prevKeys.forEach((sourceId) => {
-          if (!currentKeys.has(sourceId)) {
+        prevOgcKeysRef.current.split = new Set();
+        return;
+      }
+
+      latestKeys.forEach((sourceId) => {
+        const addLayer = addOrUpdateGeoServerLayer(
+          splitMap,
+          sourceId,
+          latestData[sourceId],
+          true,
+        );
+        void Promise.resolve(addLayer).then(() => {
+          const stateAfterAdd = useMapStore.getState();
+          if (
+            !stateAfterAdd.isSplitMode ||
+            !stateAfterAdd.ogcLayersData[sourceId]
+          ) {
             removeGeoServerLayer(splitMap, sourceId);
           }
         });
-      };
+      });
+      prevSplitKeys.forEach((sourceId) => {
+        if (!latestKeys.has(sourceId)) {
+          removeGeoServerLayer(splitMap, sourceId);
+        }
+      });
+      prevOgcKeysRef.current.split = latestKeys;
+    };
 
-      if (splitMap.isStyleLoaded()) {
-        applyToSplit();
-      } else {
-        splitMap.once("style.load", applyToSplit);
-      }
+    if (splitMap.isStyleLoaded()) {
+      syncSplitLayers();
+    } else {
+      splitMap.once("style.load", syncSplitLayers);
     }
 
-    prevOgcKeysRef.current = currentKeys;
-  }, [ogcLayersData, mapsReady.single]);
-
-  // Đồng bộ time-series raster layers (client tự build tileUrl từ geoserver_layer)
-  const prevTimeSeriesKeysRef = useRef(new Set());
-  useEffect(() => {
-    const map = mapRef.current.single;
-    if (!map || !mapsReady.single) return;
-
-    const currentKeys = new Set(Object.keys(timeSeriesLayersData));
-    const prevKeys = prevTimeSeriesKeysRef.current;
-
-    currentKeys.forEach((groupCode) => {
-      const entry = timeSeriesLayersData[groupCode];
-      if (entry?.tileUrl) {
-        addOrUpdateTimeSeriesLayer(map, groupCode, {
-          tileUrl: entry.tileUrl,
-          opacity: entry.opacity,
-        });
-      }
-    });
-
-    prevKeys.forEach((groupCode) => {
-      if (!currentKeys.has(groupCode)) {
-        removeTimeSeriesLayer(map, groupCode);
-      }
-    });
-
-    const splitMap = mapRef.current.split;
-    if (splitMap) {
-      const applyToSplit = () => {
-        currentKeys.forEach((groupCode) => {
-          const entry = timeSeriesLayersData[groupCode];
-          if (entry?.tileUrl) {
-            addOrUpdateTimeSeriesLayer(splitMap, groupCode, {
-              tileUrl: entry.tileUrl,
-              opacity: entry.opacity,
-            });
-          }
-        });
-        prevKeys.forEach((groupCode) => {
-          if (!currentKeys.has(groupCode)) {
-            removeTimeSeriesLayer(splitMap, groupCode);
-          }
-        });
-      };
-      if (splitMap.isStyleLoaded()) applyToSplit();
-      else splitMap.once("style.load", applyToSplit);
-    }
-
-    prevTimeSeriesKeysRef.current = currentKeys;
-  }, [timeSeriesLayersData, mapsReady.single]);
+    prevOgcKeysRef.current.single = currentKeys;
+    return () => splitMap.off("style.load", syncSplitLayers);
+  }, [
+    ogcLayersData,
+    isSplitMode,
+    mapsReady.single,
+    mapsReady.split,
+    mapLayerRevision,
+  ]);
 
   useEffect(() => {
     const map = mapRef.current.single;
@@ -1000,6 +1113,12 @@ export default function MapComponent() {
           });
           return;
         }
+
+        console.info(`typeNames=${entry.layer.geoserver_layer}`, {
+          id: pointFeature.id,
+          geometry: pointFeature.geometry,
+          properties: pointFeature.properties,
+        });
 
         useModalMapLayerStore
           .getState()
@@ -1097,49 +1216,68 @@ export default function MapComponent() {
       useModalMapLayerStore.getState().openModal(mapLayerData);
     };
 
-    // Track registered layers để cleanup
-    const registeredLayers = [];
+    // Track exact handler references so delegated Mapbox listeners can be removed.
+    const registeredLayers = new Map();
 
     const registerClickHandlers = () => {
+      if (map._removed || !map.isStyleLoaded()) return;
+
       // Tìm tất cả category point layers hiện tại
-      const style = map.getStyle();
+      let style;
+      try {
+        style = map.getStyle();
+      } catch {
+        // A style replacement may start between isStyleLoaded() and getStyle().
+        return;
+      }
       if (!style?.layers) return;
 
       style.layers.forEach((layer) => {
         if (
           layer.id.startsWith("cat-") &&
           layer.id.endsWith("-point") &&
-          !registeredLayers.includes(layer.id)
+          !registeredLayers.has(layer.id)
         ) {
-          map.on("click", layer.id, handlePointClick);
-          map.on("mouseenter", layer.id, () => {
+          const handleMouseEnter = () => {
             map.getCanvas().style.cursor = "pointer";
-          });
-          map.on("mouseleave", layer.id, () => {
+          };
+          const handleMouseLeave = () => {
             map.getCanvas().style.cursor = "";
+          };
+
+          map.on("click", layer.id, handlePointClick);
+          map.on("mouseenter", layer.id, handleMouseEnter);
+          map.on("mouseleave", layer.id, handleMouseLeave);
+          registeredLayers.set(layer.id, {
+            handleMouseEnter,
+            handleMouseLeave,
           });
-          registeredLayers.push(layer.id);
         }
       });
     };
 
-    // Register ngay và mỗi khi style thay đổi
+    // style.load handles a rebuilt base style; idle catches category layers
+    // that finish loading asynchronously (for example SVG point icons).
     registerClickHandlers();
-    map.on("styledata", registerClickHandlers);
+    map.on("style.load", registerClickHandlers);
+    map.on("idle", registerClickHandlers);
 
     return () => {
       try {
-        registeredLayers.forEach((layerId) => {
-          map.off("click", layerId, handlePointClick);
-          map.off("mouseenter", layerId, () => {});
-          map.off("mouseleave", layerId, () => {});
-        });
-        map.off("styledata", registerClickHandlers);
+        registeredLayers.forEach(
+          ({ handleMouseEnter, handleMouseLeave }, layerId) => {
+            map.off("click", layerId, handlePointClick);
+            map.off("mouseenter", layerId, handleMouseEnter);
+            map.off("mouseleave", layerId, handleMouseLeave);
+          },
+        );
+        map.off("style.load", registerClickHandlers);
+        map.off("idle", registerClickHandlers);
       } catch {
         // Map may already be removed during navigation — safe to ignore
       }
     };
-  }, [categoryLayersData, mapsReady.single]);
+  }, [categoryLayersData, mapLayerRevision, mapsReady.single]);
 
   // ─── Highlight Feature Effect ───────────────────────────────────────
   // Highlight đối tượng từ search hoặc click
@@ -1192,7 +1330,7 @@ export default function MapComponent() {
         {/* Legend stack – bottom-left corner */}
         <div className="absolute bottom-2 left-2 flex flex-col-reverse gap-2 items-start pointer-events-none">
           <div className="pointer-events-auto">
-            <SatelliteLegend />
+            <MapLegend />
           </div>
         </div>
         <AQIPopup />
@@ -1210,53 +1348,71 @@ class ResetControl {
   onAdd(map) {
     this._map = map;
 
-    // Create button
-    this._btn = document.createElement("button");
-    this._btn.className = "mapboxgl-ctrl-icon";
-    this._btn.title = "Reset về vị trí mặc định";
-    Object.assign(this._btn.style, {
-      width: "29px",
-      height: "29px",
-      background: "white",
-      border: "none",
-      cursor: "pointer",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-    });
-
-    this._btn.innerHTML = `
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 2v6h-6"/>
-        <path d="M3 12a9 9 0 0 1 9-9c2.5 0 4.8 1 6.5 2.7L21 8"/>
-        <path d="M3 22v-6h6"/>
-        <path d="M21 12a9 9 0 0 1-9 9c-2.5 0 4.8-1-6.5-2.7L3 16"/>
-      </svg>
-    `;
-
-    this._btn.onclick = () => {
-      // Get current terrain state when button is clicked
-      const currentTerrainState =
-        typeof this._getTerrainState === "function"
-          ? this._getTerrainState()
-          : this._getTerrainState;
-
-      resetViewPort(this._map, currentTerrainState);
-    };
-
     // Create container control
     this._container = document.createElement("div");
     this._container.className = "mapboxgl-ctrl-group mapboxgl-ctrl";
-    this._container.appendChild(this._btn);
+    this._reactRoot = createRoot(this._container);
+    this._reactRoot.render(
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            className="mapboxgl-ctrl-icon"
+            aria-label="Reset về vị trí mặc định"
+            style={{
+              width: "29px",
+              height: "29px",
+              background: "white",
+              border: "none",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            onClick={() => {
+              const currentTerrainState =
+                typeof this._getTerrainState === "function"
+                  ? this._getTerrainState()
+                  : this._getTerrainState;
+
+              resetViewPort(this._map, currentTerrainState);
+            }}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#000"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 2v6h-6" />
+              <path d="M3 12a9 9 0 0 1 9-9c2.5 0 4.8 1 6.5 2.7L21 8" />
+              <path d="M3 22v-6h6" />
+              <path d="M21 12a9 9 0 0 1-9 9c-2.5 0 4.8-1-6.5-2.7L3 16" />
+            </svg>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="left">Reset về vị trí mặc định</TooltipContent>
+      </Tooltip>,
+    );
     return this._container;
   }
 
   onRemove() {
+    const reactRoot = this._reactRoot;
+    this._reactRoot = undefined;
+    if (reactRoot) {
+      window.setTimeout(() => reactRoot.unmount(), 0);
+    }
     if (this._container && this._container.parentNode) {
       this._container.parentNode.removeChild(this._container);
     }
     this._map = undefined;
-    this._btn = undefined;
     this._container = undefined;
     this._getTerrainState = undefined;
   }

@@ -7,5 +7,4 @@ export const serviceFloodPath = "/flood";
 export const serviceForestClassificationPath = "/forest-classification";
 export const serviceMapLayerPath = "/web-map/layers";
 export const serviceSearchPath = "/search";
-export const serviceDocumentPath = "/cms/documents";
 export const serviceNotificationPath = "/notifications";

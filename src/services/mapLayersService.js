@@ -6,6 +6,67 @@ const MAP_PATH = "/web-map";
 const LAYERS_PATH = `${MAP_PATH}/layers`;
 const BASEMAPS_PATH = `${MAP_PATH}/basemaps`;
 
+/**
+ * Web Map endpoints have used both `data: []` and `data: { items: [] }`
+ * response shapes. Keep that compatibility at the service boundary so map UI
+ * components never need to know about the transport shape.
+ */
+export function extractWebMapItems(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.data?.items)) return payload.data.items;
+  if (Array.isArray(payload?.data?.layers)) return payload.data.layers;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.layers)) return payload.layers;
+  return [];
+}
+
+const read = (item, snakeCase, camelCase = undefined) =>
+  item?.[snakeCase] ?? (camelCase ? item?.[camelCase] : undefined);
+
+/** Normalizes the public `/web-map/layers` DTO to the map rendering DTO. */
+export function normalizeWebMapLayer(layer, index = 0) {
+  const code = read(layer, "code") || String(read(layer, "id") ?? index);
+
+  return {
+    ...layer,
+    id: String(read(layer, "id") ?? code),
+    code,
+    name_vi: read(layer, "name_vi", "nameVi"),
+    name_en: read(layer, "name_en", "nameEn"),
+    description_vi: read(layer, "description_vi", "descriptionVi"),
+    description_en: read(layer, "description_en", "descriptionEn"),
+    category: read(layer, "category") || "",
+    category_name: read(layer, "category_name", "categoryName") || "",
+    geometry_type: read(layer, "geometry_type", "geometryType"),
+    storage_kind: read(layer, "storage_kind", "storageKind"),
+    geoserver_layer: read(layer, "geoserver_layer", "geoserverLayer"),
+    geoserver_store: read(layer, "geoserver_store", "geoserverStore"),
+    min_zoom: read(layer, "min_zoom", "minZoom"),
+    max_zoom: read(layer, "max_zoom", "maxZoom"),
+    is_public: read(layer, "is_public", "isPublic"),
+    is_enable_default: read(layer, "is_enable_default", "isEnableDefault"),
+    is_active: read(layer, "is_active", "isActive"),
+    is_editable: read(layer, "is_editable", "isEditable"),
+    layer_kind: read(layer, "layer_kind", "layerKind") || "overlay",
+    default_style: read(layer, "default_style", "defaultStyle") || {},
+  };
+}
+
+/** Normalizes the public `/web-map/basemaps` catalog DTO. */
+export function normalizeWebMapBasemap(basemap, index = 0) {
+  const code = read(basemap, "code") || String(read(basemap, "id") ?? index);
+  return {
+    ...basemap,
+    id: String(read(basemap, "id") ?? code),
+    code,
+    name_vi: read(basemap, "name_vi", "nameVi") || code,
+    url_template: read(basemap, "url_template", "urlTemplate"),
+    min_zoom: read(basemap, "min_zoom", "minZoom"),
+    max_zoom: read(basemap, "max_zoom", "maxZoom"),
+  };
+}
+
 /** GET /web-map/layers */
 export function getMapLayers() {
   return fetcher(LAYERS_PATH);

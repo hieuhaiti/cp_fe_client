@@ -40,13 +40,6 @@ const categories = [
     slug: "news",
   },
   {
-    id: 3,
-    name: "Văn bản",
-    shortname: "Văn bản",
-    fullname: "Báo cáo và văn bản",
-    slug: "documents",
-  },
-  {
     id: 4,
     name: "Bản đồ PDF",
     shortname: "Bản đồ PDF",
@@ -278,7 +271,7 @@ export default function Header() {
                         </li>
                         <li>
                           <Button
-                            variant="soft-info"
+                            variant="soft-primary"
                             className="h-auto w-full justify-start px-4 py-2"
                             onClick={() =>
                               openExternalLink("/uploads/apk/gis-cam-pha.apk")
@@ -339,7 +332,7 @@ export default function Header() {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
-                        variant="soft-info"
+                        variant="soft-primary"
                         size="icon-sm"
                         className="rounded-full"
                         onClick={() =>

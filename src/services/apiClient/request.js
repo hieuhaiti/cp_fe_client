@@ -188,4 +188,6 @@ export function withQuery(endpoint, params = {}) {
   return queryString ? `${endpoint}?${queryString}` : endpoint;
 }
 
+export const getApiBaseUrl = () => API_BASE_URL;
+
 export { saveTokens };

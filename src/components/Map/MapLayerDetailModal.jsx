@@ -21,6 +21,11 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useModalMapLayerStore } from "@/stores/Map/useModalMapLayerStore";
 import { cn, praseLink } from "@/lib/utils";
 
@@ -124,10 +129,12 @@ function humanizeText(value) {
 }
 
 function getCategoryLabel(data) {
-  const category = data?.category || data?.layer_group;
+  const category = data?.category;
   if (!category) return "Chưa phân loại";
 
-  return CATEGORY_LABELS[String(category).toLowerCase()] || humanizeText(category);
+  return (
+    CATEGORY_LABELS[String(category).toLowerCase()] || humanizeText(category)
+  );
 }
 
 function getLayerColor(data) {
@@ -149,14 +156,18 @@ function getGeometry(data) {
 }
 
 function getGeometryKind(data, geometry) {
-  const type = String(data?.geometry_type || geometry?.type || "").toLowerCase();
+  const type = String(
+    data?.geometry_type || geometry?.type || "",
+  ).toLowerCase();
   if (type.includes("point")) return "point";
   if (type.includes("line")) return "line";
   return "unknown";
 }
 
 function getGeometryLabel(data, geometry, kind) {
-  const type = String(data?.geometry_type || geometry?.type || "").toLowerCase();
+  const type = String(
+    data?.geometry_type || geometry?.type || "",
+  ).toLowerCase();
   if (kind === "point") return type.includes("multi") ? "Đa điểm" : "Điểm";
   if (kind === "line") return type.includes("multi") ? "Đa tuyến" : "Đường";
   return "Đối tượng";
@@ -337,21 +348,27 @@ function CopyCoordinateButton({ value }) {
   };
 
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      onClick={handleCopy}
-      aria-label={copied ? "Đã sao chép tọa độ" : "Sao chép tọa độ"}
-      title={copied ? "Đã sao chép" : "Sao chép tọa độ"}
-      className="shrink-0"
-    >
-      {copied ? (
-        <Check className="h-4 w-4 text-success" />
-      ) : (
-        <Copy className="h-4 w-4" />
-      )}
-    </Button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={handleCopy}
+          aria-label={copied ? "Đã sao chép tọa độ" : "Sao chép tọa độ"}
+          className="shrink-0"
+        >
+          {copied ? (
+            <Check className="h-4 w-4 text-success" />
+          ) : (
+            <Copy className="h-4 w-4" />
+          )}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        {copied ? "Đã sao chép" : "Sao chép tọa độ"}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -404,10 +421,7 @@ function GeometrySummary({ geometry, kind }) {
         </div>
         <dl className="grid grid-cols-2 gap-2">
           {coordinateItems.map((item) => (
-            <div
-              key={item.label}
-              className="rounded-lg bg-card/80 px-3 py-2"
-            >
+            <div key={item.label} className="rounded-lg bg-card/80 px-3 py-2">
               <dt className="text-xs text-muted-foreground">{item.label}</dt>
               <dd className="mt-0.5 font-mono text-sm font-semibold text-foreground">
                 {item.value.toFixed(precision)}
@@ -542,9 +556,7 @@ export function MapLayerDetailModal() {
       label: getCategoryLabel(mapLayerData),
       color,
       colorWash: hexToRgba(color),
-      iconUrl: mapLayerData?.icon_url
-        ? praseLink(mapLayerData.icon_url)
-        : null,
+      iconUrl: mapLayerData?.icon_url ? praseLink(mapLayerData.icon_url) : null,
     };
   }, [mapLayerData]);
 
@@ -607,7 +619,9 @@ export function MapLayerDetailModal() {
               </DialogTitle>
               <DialogDescription className="mt-2 flex flex-wrap items-center gap-2">
                 <Badge
-                  variant={geometryKind === "line" ? "soft-info" : "soft-primary"}
+                  variant={
+                    geometryKind === "line" ? "soft-info" : "soft-primary"
+                  }
                   className="rounded-md"
                 >
                   <GeometryIcon className="h-3 w-3" />
@@ -633,11 +647,6 @@ export function MapLayerDetailModal() {
                   <Layers3 className="h-3 w-3" />
                   <span className="truncate">{categoryMeta.label}</span>
                 </Badge>
-                {mapLayerData.code && (
-                  <span className="text-xs text-muted-foreground">
-                    Mã lớp: {mapLayerData.code}
-                  </span>
-                )}
               </DialogDescription>
               {mapLayerData.description && (
                 <p className="mt-2 max-w-xl text-xs leading-relaxed text-muted-foreground">
@@ -693,21 +702,6 @@ export function MapLayerDetailModal() {
               <PropertyList entries={propertyEntries} />
             </section>
           </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 border-t border-border bg-muted/30 px-5 py-3 sm:px-6">
-          <p className="hidden text-xs text-muted-foreground sm:block">
-            Dữ liệu được cung cấp từ lớp bản đồ đang chọn.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={closeModal}
-            className="ml-auto min-w-24"
-          >
-            Đóng
-          </Button>
         </div>
       </DialogContent>
     </Dialog>

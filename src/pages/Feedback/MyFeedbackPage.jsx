@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Calendar,
   CircleDot,
+  Clock3,
   ExternalLink,
   FileImage,
   MapPin,
@@ -10,6 +11,8 @@ import {
   Plus,
   RefreshCw,
   Search,
+  ShieldCheck,
+  UserRound,
 } from "lucide-react";
 import LoadingInline from "@/components/common/LoadingInline";
 import PaginationCustom from "@/components/common/PaginationCustom";
@@ -25,6 +28,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -35,44 +39,35 @@ import {
 import { useDebounce } from "@/hooks/useDebounce";
 import NewsLayout from "@/layout/NewsLayout";
 import { formatDateTime, praseLink } from "@/lib/utils";
+import { toast } from "react-toastify";
 import {
+  updateFeedbackStatus,
+  useGetAdminFeedbackDetailQuery,
+  useGetAdminFeedbackQuery,
   useGetFeedbackDetailQuery,
   useGetMyFeedbackQuery,
 } from "@/services/feedbackService";
 import useAuthStore from "@/stores/useAuthStore.jsx";
 
 const ALL_VALUE = "all";
+const REVIEW_STATUS_PLACEHOLDER = "select";
 
 const STATUS_META = {
-  new: { label: "Mới tiếp nhận", variant: "soft-info" },
-  in_progress: { label: "Đang xử lý", variant: "soft-warning" },
-  resolved: { label: "Đã xử lý", variant: "soft-success" },
+  pending: { label: "Đã tiếp nhận", variant: "soft-info" },
+  under_review: { label: "Đang xử lý", variant: "soft-warning" },
+  approved: { label: "Đã phê duyệt", variant: "soft-primary" },
+  resolved: { label: "Đã hoàn tất", variant: "soft-success" },
   rejected: { label: "Từ chối", variant: "soft-destructive" },
 };
 
-const CATEGORY_LABELS = {
-  ngap_lut: "Ngập lụt",
-  vi_pham: "Vi phạm",
-  hien_trang: "Hiện trạng",
-};
-
-const PRIORITY_META = {
-  low: { label: "Thấp", variant: "ghost" },
-  normal: { label: "Bình thường", variant: "soft-primary" },
-  high: { label: "Cao", variant: "soft-warning" },
-  urgent: { label: "Khẩn cấp", variant: "destructive" },
+const REVIEW_STATUS_OPTIONS = {
+  pending: ["under_review", "approved", "rejected"],
+  under_review: ["approved", "rejected"],
+  approved: ["resolved"],
 };
 
 function getStatusMeta(status) {
   return STATUS_META[status] || { label: "Chưa rõ", variant: "outline" };
-}
-
-function getPriorityMeta(priority) {
-  return PRIORITY_META[priority] || PRIORITY_META.normal;
-}
-
-function getCategoryLabel(category) {
-  return CATEGORY_LABELS[category] || "Phản ánh";
 }
 
 function formatCoordinate(value) {
@@ -82,7 +77,33 @@ function formatCoordinate(value) {
 }
 
 function getMediaUrls(item) {
-  return Array.isArray(item?.mediaUrls) ? item.mediaUrls.filter(Boolean) : [];
+  if (Array.isArray(item?.mediaUrls)) return item.mediaUrls.filter(Boolean);
+  if (!Array.isArray(item?.photos)) return [];
+  return item.photos
+    .map((photo) => (typeof photo === "string" ? photo : photo?.url))
+    .filter(Boolean);
+}
+
+function normalizeFeedback(item = {}) {
+  return {
+    ...item,
+    referenceCode: item.referenceCode ?? item.reference_code,
+    createdAt: item.createdAt ?? item.created_at,
+    updatedAt: item.updatedAt ?? item.updated_at,
+    lat: item.lat ?? item.latitude ?? item.longitude_lat,
+    lng: item.lng ?? item.longitude ?? item.latitude_lng,
+    photoCount: item.photoCount ?? item.photo_count,
+    senderName: item.senderName ?? item.sender_name,
+    senderEmail: item.senderEmail ?? item.sender_email,
+    statusLogs: (item.statusLogs ?? item.history ?? []).map((log) => ({
+      ...log,
+      fromStatus: log.fromStatus ?? log.previous_status,
+      toStatus: log.toStatus ?? log.new_status,
+      note: log.note ?? log.reason,
+      changedAt: log.changedAt ?? log.created_at,
+      changedByName: log.changedByName ?? log.actor_name,
+    })),
+  };
 }
 
 function isImageUrl(url) {
@@ -162,19 +183,26 @@ function FeedbackResponseHistory({ logs, isLoading }) {
   );
 }
 
-function EmptyState({ onCreate }) {
+function EmptyState({ onCreate, isAdminReviewMode }) {
   return (
     <div className="flex flex-col items-center justify-center px-4 py-16 text-center">
       <MessageSquare className="mb-3 h-12 w-12 text-muted-foreground" />
-      <p className="font-medium text-foreground">Chưa có phản ánh phù hợp.</p>
-      <p className="mt-1 max-w-md text-sm text-muted-foreground">
-        Thử thay đổi bộ lọc hoặc gửi phản ánh mới khi phát hiện vấn đề hiện
-        trường.
+      <p className="font-medium text-foreground">
+        {isAdminReviewMode
+          ? "Chưa có phản ánh phù hợp để xử lý."
+          : "Chưa có phản ánh phù hợp."}
       </p>
-      <Button className="mt-4" onClick={onCreate}>
-        <Plus />
-        Gửi phản ánh
-      </Button>
+      <p className="mt-1 max-w-md text-sm text-muted-foreground">
+        {isAdminReviewMode
+          ? "Thử thay đổi bộ lọc để xem các phản ánh người dân đã gửi."
+          : "Thử thay đổi bộ lọc hoặc gửi phản ánh mới khi phát hiện vấn đề hiện trường."}
+      </p>
+      {!isAdminReviewMode && (
+        <Button className="mt-4" onClick={onCreate}>
+          <Plus />
+          Gửi phản ánh
+        </Button>
+      )}
     </div>
   );
 }
@@ -184,23 +212,21 @@ function StatusBadge({ status }) {
   return <Badge variant={meta.variant}>{meta.label}</Badge>;
 }
 
-function PriorityBadge({ priority }) {
-  const meta = getPriorityMeta(priority);
-  return <Badge variant={meta.variant}>{meta.label}</Badge>;
-}
-
 export default function MyFeedbackPage() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const user = useAuthStore((state) => state.user);
+  const isAdminReviewMode = user?.role?.code === "system_admin";
   const [filters, setFilters] = useState({
     page: 1,
     limit: 10,
     status: ALL_VALUE,
-    category: ALL_VALUE,
-    priority: ALL_VALUE,
   });
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [selectedFeedback, setSelectedFeedback] = useState(null);
+  const [reviewStatus, setReviewStatus] = useState(REVIEW_STATUS_PLACEHOLDER);
+  const [reviewReason, setReviewReason] = useState("");
+  const [isReviewSubmitting, setIsReviewSubmitting] = useState(false);
   const debouncedSearch = useDebounce(search, 400);
 
   const queryParams = useMemo(
@@ -209,35 +235,85 @@ export default function MyFeedbackPage() {
       limit: filters.limit,
       q: debouncedSearch,
       status: filters.status === ALL_VALUE ? undefined : filters.status,
-      category: filters.category === ALL_VALUE ? undefined : filters.category,
-      priority: filters.priority === ALL_VALUE ? undefined : filters.priority,
     }),
     [debouncedSearch, filters],
   );
 
+  const myFeedbackQuery = useGetMyFeedbackQuery(queryParams, {
+    enabled: !isAdminReviewMode,
+  });
+  const adminFeedbackQuery = useGetAdminFeedbackQuery(queryParams, {
+    enabled: isAdminReviewMode,
+  });
   const { data, isLoading, isError, isFetching, refetch } =
-    useGetMyFeedbackQuery(queryParams);
+    isAdminReviewMode ? adminFeedbackQuery : myFeedbackQuery;
 
   const selectedFeedbackId = selectedFeedback?.id;
-  const { data: detailData, isFetching: isFetchingDetail } =
-    useGetFeedbackDetailQuery(selectedFeedbackId, {
-      enabled: Boolean(selectedFeedbackId),
-    });
+  const myFeedbackDetailQuery = useGetFeedbackDetailQuery(selectedFeedbackId, {
+    enabled: Boolean(selectedFeedbackId) && !isAdminReviewMode,
+  });
+  const adminFeedbackDetailQuery = useGetAdminFeedbackDetailQuery(selectedFeedbackId, {
+    enabled: Boolean(selectedFeedbackId) && isAdminReviewMode,
+  });
+  const {
+    data: detailData,
+    isFetching: isFetchingDetail,
+    refetch: refetchDetail,
+  } = isAdminReviewMode ? adminFeedbackDetailQuery : myFeedbackDetailQuery;
 
-  const feedbackItems = Array.isArray(data?.data?.items) ? data.data.items : [];
+  const feedbackItems = Array.isArray(data?.data?.items)
+    ? data.data.items.map(normalizeFeedback)
+    : [];
   const pagination = data?.metadata || {};
   const total = Number(pagination.total || feedbackItems.length);
   const totalPages =
     Number(pagination.totalPages) ||
     Math.max(1, Math.ceil(total / filters.limit));
-  const detail = detailData?.data || selectedFeedback;
+  const detail = normalizeFeedback(detailData?.data || selectedFeedback || {});
   const detailMedia = getMediaUrls(detail);
-  const detailStatusLogs = Array.isArray(detail?.statusLogs)
-    ? detail.statusLogs
-    : [];
+  const detailStatusLogs = Array.isArray(detail?.statusLogs) ? detail.statusLogs : [];
 
   const updateFilter = (key, value) => {
     setFilters((prev) => ({ ...prev, [key]: value, page: 1 }));
+  };
+
+  const handleOpenFeedback = (item) => {
+    setSelectedFeedback(item);
+    setReviewStatus(REVIEW_STATUS_PLACEHOLDER);
+    setReviewReason("");
+  };
+
+  const handleReview = async () => {
+    if (!selectedFeedbackId || reviewStatus === REVIEW_STATUS_PLACEHOLDER) return;
+
+    const expectedUpdatedAt = detail.updatedAt || selectedFeedback?.updatedAt;
+    if (!expectedUpdatedAt) {
+      toast.error("Thiếu thời điểm cập nhật để duyệt phản ánh. Vui lòng tải lại.");
+      return;
+    }
+
+    const reason = reviewReason.trim();
+    if (reviewStatus === "rejected" && reason.length < 5) {
+      toast.warning("Cần nêu lý do từ chối ít nhất 5 ký tự.");
+      return;
+    }
+
+    setIsReviewSubmitting(true);
+    try {
+      await updateFeedbackStatus(selectedFeedbackId, {
+        status: reviewStatus,
+        reason: reason || undefined,
+        expectedUpdatedAt,
+      });
+      toast.success("Đã cập nhật trạng thái phản ánh.");
+      setReviewStatus(REVIEW_STATUS_PLACEHOLDER);
+      setReviewReason("");
+      await Promise.all([refetch(), refetchDetail()]);
+    } catch (error) {
+      toast.error(error?.message || "Không thể cập nhật trạng thái phản ánh.");
+    } finally {
+      setIsReviewSubmitting(false);
+    }
   };
 
   const handlePageChange = (page) => {
@@ -247,33 +323,55 @@ export default function MyFeedbackPage() {
 
   return (
     <NewsLayout>
-      <main className="container mx-auto px-4 py-6 md:py-8">
-        <section className="mb-6 flex flex-col gap-4 md:mb-8 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold leading-tight text-foreground md:text-3xl">
-              Phản ánh của tôi
-            </h1>
-            <p className="mt-2 text-sm text-muted-foreground md:text-base">
-              Theo dõi phản ánh hiện trường đã gửi, trạng thái xử lý và vị trí
-              liên quan.
+      <div className="min-h-screen bg-(image:--gradient-surface-page) py-6 sm:py-10">
+        <main className="container mx-auto max-w-6xl px-4">
+        <section className="relative mb-6 overflow-hidden rounded-[2rem] border border-(--gradient-surface-panel-border) bg-(image:--gradient-surface-panel) px-6 py-8 text-(--gradient-surface-panel-foreground) shadow-xl md:mb-8 md:px-10 md:py-10">
+          <div className="absolute -right-16 -top-24 h-64 w-64 rounded-full border border-white/20" />
+          <div className="absolute bottom-0 right-16 h-24 w-24 rounded-t-full bg-(--gradient-surface-panel-wash-strong)" />
+          <div className="relative flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+            <div className="max-w-2xl">
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-white/70">
+              Dịch vụ công / hiện trường
             </p>
-            {!isAuthenticated && (
-              <div className="mt-4 rounded-lg border border-border bg-(--info-subtle) p-3 text-sm text-(--info-subtle-foreground)">
+            <h1 className="text-3xl font-bold leading-tight tracking-tight text-white md:text-4xl">
+              {isAdminReviewMode ? "Duyệt phản ánh người dân" : "Phản ánh của tôi"}
+            </h1>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-white/80 md:text-base">
+              {isAdminReviewMode
+                ? "Tiếp nhận, xem thông tin và cập nhật trạng thái các phản ánh hiện trường từ người dân."
+                : "Theo dõi phản ánh hiện trường đã gửi, trạng thái xử lý và vị trí liên quan."}
+            </p>
+            {!isAdminReviewMode && !isAuthenticated && (
+              <div className="mt-4 rounded-xl border border-white/20 bg-white/10 p-3 text-sm text-white/85 backdrop-blur-sm">
                 Bạn đang xem phản ánh gắn với trình duyệt hiện tại. Đăng nhập để
                 đồng bộ phản ánh theo tài khoản.
               </div>
             )}
-          </div>
+            </div>
 
-          <Button onClick={() => setFormOpen(true)}>
-            <Plus />
-            Gửi phản ánh
-          </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="rounded-2xl border border-white/20 bg-white/10 px-5 py-4 text-white backdrop-blur-sm">
+                <p className="text-3xl font-bold">{total.toLocaleString("vi-VN")}</p>
+                <p className="mt-1 text-xs font-medium uppercase tracking-wider text-white/70">
+                  phản ánh
+                </p>
+              </div>
+              {!isAdminReviewMode && (
+                <Button
+                  onClick={() => setFormOpen(true)}
+                  className="bg-white text-primary hover:bg-white/90"
+                >
+                  <Plus />
+                  Gửi phản ánh
+                </Button>
+              )}
+            </div>
+          </div>
         </section>
 
-        <Card className="mb-4 gap-3 p-4">
+        <section className="mb-6 flex flex-col gap-3 rounded-2xl border border-border bg-card/90 p-3 shadow-sm backdrop-blur md:flex-row md:items-center md:p-4">
           <section
-            className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_160px_160px_150px]"
+            className="grid flex-1 gap-3 md:grid-cols-[minmax(0,1fr)_180px]"
             aria-label="Bộ lọc phản ánh"
           >
             <div className="relative min-w-0">
@@ -286,7 +384,7 @@ export default function MyFeedbackPage() {
                   setSearch(event.target.value);
                   setFilters((prev) => ({ ...prev, page: 1 }));
                 }}
-                className="pl-10"
+                className="h-11 border-transparent bg-muted/70 pl-10 shadow-none focus-visible:bg-background"
               />
             </div>
 
@@ -294,52 +392,22 @@ export default function MyFeedbackPage() {
               value={filters.status}
               onValueChange={(value) => updateFilter("status", value)}
             >
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="h-11 w-full border-transparent bg-muted/70 shadow-none">
                 <SelectValue placeholder="Trạng thái" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL_VALUE}>Tất cả trạng thái</SelectItem>
-                <SelectItem value="new">Mới tiếp nhận</SelectItem>
-                <SelectItem value="in_progress">Đang xử lý</SelectItem>
-                <SelectItem value="resolved">Đã xử lý</SelectItem>
+                <SelectItem value="pending">Đã tiếp nhận</SelectItem>
+                <SelectItem value="under_review">Đang xử lý</SelectItem>
+                <SelectItem value="approved">Đã phê duyệt</SelectItem>
+                <SelectItem value="resolved">Đã hoàn tất</SelectItem>
                 <SelectItem value="rejected">Từ chối</SelectItem>
               </SelectContent>
             </Select>
-
-            <Select
-              value={filters.category}
-              onValueChange={(value) => updateFilter("category", value)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Loại phản ánh" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_VALUE}>Tất cả loại</SelectItem>
-                <SelectItem value="ngap_lut">Ngập lụt</SelectItem>
-                <SelectItem value="vi_pham">Vi phạm</SelectItem>
-                <SelectItem value="hien_trang">Hiện trạng</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={filters.priority}
-              onValueChange={(value) => updateFilter("priority", value)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Mức ưu tiên" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_VALUE}>Tất cả mức</SelectItem>
-                <SelectItem value="low">Thấp</SelectItem>
-                <SelectItem value="normal">Bình thường</SelectItem>
-                <SelectItem value="high">Cao</SelectItem>
-                <SelectItem value="urgent">Khẩn cấp</SelectItem>
-              </SelectContent>
-            </Select>
           </section>
-        </Card>
+        </section>
 
-        <Card className="overflow-hidden p-0">
+        <Card className="overflow-hidden border-border/80 bg-card/95 p-0 shadow-sm">
           {isLoading && (
             <div className="py-20">
               <LoadingInline position="center" size="large" />
@@ -350,7 +418,9 @@ export default function MyFeedbackPage() {
             <div className="p-8 text-center text-card-foreground">
               <MessageSquare className="mx-auto mb-3 h-12 w-12 text-muted-foreground" />
               <p className="mb-4 font-medium">
-                Không thể tải danh sách phản ánh của bạn.
+                {isAdminReviewMode
+                  ? "Không thể tải danh sách phản ánh của người dân."
+                  : "Không thể tải danh sách phản ánh của bạn."}
               </p>
               <Button variant="soft-warning" onClick={() => refetch()}>
                 <RefreshCw />
@@ -360,7 +430,10 @@ export default function MyFeedbackPage() {
           )}
 
           {!isLoading && !isError && feedbackItems.length === 0 && (
-            <EmptyState onCreate={() => setFormOpen(true)} />
+            <EmptyState
+              onCreate={() => setFormOpen(true)}
+              isAdminReviewMode={isAdminReviewMode}
+            />
           )}
 
           {!isLoading && !isError && feedbackItems.length > 0 && (
@@ -371,85 +444,52 @@ export default function MyFeedbackPage() {
                 </div>
               )}
 
-              <div className="w-full overflow-x-auto">
-                <table className="w-full min-w-[980px] table-fixed text-sm">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/50 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      <th className="w-14 px-4 py-3">#</th>
-                      <th className="w-72 px-4 py-3">Phản ánh</th>
-                      <th className="w-36 px-4 py-3">Loại</th>
-                      <th className="w-36 px-4 py-3 text-center">
-                        Trạng thái
-                      </th>
-                      <th className="w-32 px-4 py-3 text-center">Ưu tiên</th>
-                      <th className="w-44 px-4 py-3">Vị trí</th>
-                      <th className="w-44 px-4 py-3">Ngày gửi</th>
-                      <th className="w-28 px-4 py-3 text-center">Tệp</th>
-                      <th className="w-28 px-4 py-3 text-center">Thao tác</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {feedbackItems.map((item, index) => {
-                      const mediaCount = getMediaUrls(item).length;
-                      return (
-                        <tr
-                          key={item.id}
-                          className="cursor-pointer transition-colors hover:bg-muted/40"
-                          onClick={() => setSelectedFeedback(item)}
-                        >
-                          <td className="px-4 py-3 text-muted-foreground">
-                            {(filters.page - 1) * filters.limit + index + 1}
-                          </td>
-                          <td className="px-4 py-3">
-                            <p className="truncate font-medium text-foreground">
-                              {item.title || `Phản ánh #${item.id}`}
-                            </p>
-                            <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
-                              {item.description || "Chưa có mô tả."}
-                            </p>
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge variant="outline">
-                              {getCategoryLabel(item.category)}
-                            </Badge>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <StatusBadge status={item.status} />
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <PriorityBadge priority={item.priority} />
-                          </td>
-                          <td className="px-4 py-3 text-xs text-muted-foreground">
-                            <span className="inline-flex items-center gap-1.5">
-                              <MapPin className="h-3.5 w-3.5" />
-                              {formatCoordinate(item.lat)},{" "}
-                              {formatCoordinate(item.lng)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-muted-foreground">
+              <div className="divide-y divide-border">
+                {feedbackItems.map((item) => {
+                  const mediaCount = Number(item.photoCount ?? getMediaUrls(item).length);
+                  const reference = item.referenceCode || `#${item.id}`;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className="group grid w-full gap-4 p-5 text-left transition-colors hover:bg-muted/45 focus-visible:bg-muted/45 focus-visible:outline-none sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:p-6"
+                      onClick={() => handleOpenFeedback(item)}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StatusBadge status={item.status} />
+                          <span className="text-xs font-medium text-muted-foreground">{reference}</span>
+                        </div>
+                        <h2 className="mt-3 line-clamp-1 text-base font-semibold text-foreground transition-colors group-hover:text-primary sm:text-lg">
+                          Phản ánh hiện trường {reference}
+                        </h2>
+                        <p className="mt-1.5 line-clamp-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+                          {item.description || "Chưa có mô tả chi tiết."}
+                        </p>
+                        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
+                          <span className="inline-flex items-center gap-1.5">
+                            <Clock3 className="h-3.5 w-3.5" />
                             {formatDateTime(item.createdAt)}
-                          </td>
-                          <td className="px-4 py-3 text-center text-muted-foreground">
-                            {mediaCount > 0 ? `${mediaCount} tệp` : "-"}
-                          </td>
-                          <td
-                            className="px-4 py-3 text-center"
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            <Button
-                              type="button"
-                              variant="soft-primary"
-                              size="sm"
-                              onClick={() => setSelectedFeedback(item)}
-                            >
-                              Chi tiết
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <MapPin className="h-3.5 w-3.5" />
+                            {formatCoordinate(item.lat)}, {formatCoordinate(item.lng)}
+                          </span>
+                          {mediaCount > 0 && (
+                            <span className="inline-flex items-center gap-1.5">
+                              <FileImage className="h-3.5 w-3.5" />
+                              {mediaCount} tệp đính kèm
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="inline-flex items-center justify-center gap-2 text-sm font-medium text-primary sm:justify-self-end">
+                        Xem chi tiết
+                        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -468,27 +508,34 @@ export default function MyFeedbackPage() {
             />
           </div>
         )}
-      </main>
+        </main>
+      </div>
 
-      <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Gửi phản ánh hiện trường</DialogTitle>
-            <DialogDescription>
-              Gửi phản ánh kèm tọa độ và ảnh/video hiện trường nếu có.
-            </DialogDescription>
-          </DialogHeader>
-          <FeedbackForm
-            onSuccess={() => setFormOpen(false)}
-            onCancel={() => setFormOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
+      {!isAdminReviewMode && (
+        <Dialog open={formOpen} onOpenChange={setFormOpen}>
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Gửi phản ánh hiện trường</DialogTitle>
+              <DialogDescription>
+                Gửi phản ánh kèm tọa độ và ảnh/video hiện trường nếu có.
+              </DialogDescription>
+            </DialogHeader>
+            <FeedbackForm
+              onSuccess={() => setFormOpen(false)}
+              onCancel={() => setFormOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Dialog
         open={Boolean(selectedFeedback)}
         onOpenChange={(open) => {
-          if (!open) setSelectedFeedback(null);
+          if (!open) {
+            setSelectedFeedback(null);
+            setReviewStatus(REVIEW_STATUS_PLACEHOLDER);
+            setReviewReason("");
+          }
         }}
       >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
@@ -507,8 +554,9 @@ export default function MyFeedbackPage() {
             <div className="grid gap-4">
               <div className="flex flex-wrap gap-2">
                 <StatusBadge status={detail.status} />
-                <PriorityBadge priority={detail.priority} />
-                <Badge variant="outline">{getCategoryLabel(detail.category)}</Badge>
+                {detail.referenceCode && (
+                  <Badge variant="outline">{detail.referenceCode}</Badge>
+                )}
               </div>
 
               <div className="grid gap-3 rounded-lg border border-border bg-card p-4 text-sm">
@@ -525,6 +573,15 @@ export default function MyFeedbackPage() {
                     {formatCoordinate(detail.lat)}, {formatCoordinate(detail.lng)}
                   </span>
                 </div>
+                {isAdminReviewMode && (detail.senderName || detail.senderEmail) && (
+                  <div className="flex items-center gap-2 border-t border-border pt-3 text-muted-foreground">
+                    <UserRound className="h-4 w-4" />
+                    <span>
+                      {detail.senderName || "Người gửi"}
+                      {detail.senderEmail ? ` · ${detail.senderEmail}` : ""}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {detailMedia.length > 0 && (
@@ -570,6 +627,53 @@ export default function MyFeedbackPage() {
                 logs={detailStatusLogs}
                 isLoading={isFetchingDetail}
               />
+
+              {isAdminReviewMode &&
+                (REVIEW_STATUS_OPTIONS[detail.status] || []).length > 0 && (
+                  <section className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-5 w-5 text-primary" />
+                      <h3 className="font-semibold text-foreground">Duyệt phản ánh</h3>
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Chọn trạng thái tiếp theo và ghi chú xử lý để người dân theo dõi.
+                    </p>
+                    <div className="mt-4 grid gap-3">
+                      <Select value={reviewStatus} onValueChange={setReviewStatus}>
+                        <SelectTrigger className="bg-background">
+                          <SelectValue placeholder="Chọn trạng thái mới" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={REVIEW_STATUS_PLACEHOLDER} disabled>
+                            Chọn trạng thái mới
+                          </SelectItem>
+                          {(REVIEW_STATUS_OPTIONS[detail.status] || []).map((status) => (
+                            <SelectItem key={status} value={status}>
+                              {getStatusMeta(status).label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Textarea
+                        value={reviewReason}
+                        onChange={(event) => setReviewReason(event.target.value)}
+                        maxLength={1000}
+                        rows={3}
+                        placeholder="Ghi chú xử lý (bắt buộc khi từ chối)"
+                        disabled={isReviewSubmitting}
+                      />
+                      <Button
+                        onClick={handleReview}
+                        disabled={
+                          isReviewSubmitting || reviewStatus === REVIEW_STATUS_PLACEHOLDER
+                        }
+                      >
+                        <ShieldCheck />
+                        {isReviewSubmitting ? "Đang cập nhật..." : "Cập nhật trạng thái"}
+                      </Button>
+                    </div>
+                  </section>
+                )}
             </div>
           )}
         </DialogContent>

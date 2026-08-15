@@ -4,18 +4,36 @@ import { withQuery } from "@/services/apiClient/request";
 import { useApiQuery } from "@/services/apiClient/useApi";
 
 const NOTIFICATIONS_PATH = "/notifications";
+const MY_NOTIFICATIONS_PATH = `${NOTIFICATIONS_PATH}/mine`;
 const PUSH_TOKEN_PATH = "/devices/push-token";
+
+function normalizeListParams(params = {}) {
+  const {
+    onlyUnread,
+    unread_only: unreadOnlyLegacy,
+    isRead,
+    user_id: _userId,
+    ...supportedParams
+  } = params;
+  void _userId;
+  const unreadOnly =
+    supportedParams.unreadOnly ??
+    onlyUnread ??
+    unreadOnlyLegacy ??
+    (typeof isRead === "boolean" ? !isRead : undefined);
+
+  return {
+    page: 1,
+    limit: 20,
+    ...supportedParams,
+    ...(unreadOnly !== undefined && { unreadOnly }),
+  };
+}
 
 export function useGetNotificationsQuery(params = {}, options = {}) {
   return useApiQuery(
     ["notifications", params],
-    withQuery(NOTIFICATIONS_PATH, {
-      page: 1,
-      limit: 20,
-      onlyUnread: false,
-      lang: "vi",
-      ...params,
-    }),
+    withQuery(MY_NOTIFICATIONS_PATH, normalizeListParams(params)),
     options,
   );
 }
@@ -24,13 +42,7 @@ export const useGetMyNotificationsQuery = useGetNotificationsQuery;
 
 export function getNotifications(params = {}) {
   return fetcher(
-    withQuery(NOTIFICATIONS_PATH, {
-      page: 1,
-      limit: 20,
-      onlyUnread: false,
-      lang: "vi",
-      ...params,
-    }),
+    withQuery(MY_NOTIFICATIONS_PATH, normalizeListParams(params)),
   );
 }
 
@@ -82,13 +94,5 @@ export function unregisterNotificationDevice(token, lang = "vi") {
     withQuery(PUSH_TOKEN_PATH, { lang }),
     "DELETE",
     { token },
-  );
-}
-
-export function sendNotification(payload, lang = "vi") {
-  return mutater(
-    withQuery(`${NOTIFICATIONS_PATH}/send`, { lang }),
-    "POST",
-    payload,
   );
 }

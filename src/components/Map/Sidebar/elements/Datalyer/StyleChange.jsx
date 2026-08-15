@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { Palette } from "lucide-react";
+import { useEffect, useMemo } from "react";
+import { AlertTriangle, Globe2, Palette } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -7,10 +7,44 @@ import {
 } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import LoadingInline from "@/components/common/LoadingInline";
 import { useDebounceStore } from "@/stores/common/useDebounceStore";
 import { useMapStyleStore } from "@/stores/Map/Sidebar/useMapStyleStore";
 import { mapStyles } from "@/constant/styleChangeData";
+import {
+  extractWebMapItems,
+  normalizeWebMapBasemap,
+  useGetMapBasemapsQuery,
+} from "@/services/mapLayersService";
+
+function createRasterStyle(basemap) {
+  const sourceId = `web-map-basemap-${basemap.code}`;
+  const layerId = `${sourceId}-raster`;
+
+  return {
+    version: 8,
+    sources: {
+      [sourceId]: {
+        type: "raster",
+        tiles: [basemap.url_template],
+        tileSize: 256,
+        minzoom: basemap.min_zoom ?? 0,
+        maxzoom: basemap.max_zoom ?? 22,
+        attribution: basemap.attribution || "",
+      },
+    },
+    layers: [
+      {
+        id: layerId,
+        type: "raster",
+        source: sourceId,
+        minzoom: basemap.min_zoom ?? 0,
+        maxzoom: basemap.max_zoom ?? 22,
+      },
+    ],
+  };
+}
 
 export function StyleChange() {
   // Style state
@@ -18,12 +52,24 @@ export function StyleChange() {
   const setMapStyle = useMapStyleStore((s) => s.setMapStyle);
 
   const terrainState = useMapStyleStore((s) => s.terrainState);
+  const terrainSupported = useMapStyleStore((s) => s.terrainSupported);
   const terrainLoading = useMapStyleStore((s) => s.terrainLoading);
   const setTerrainState = useMapStyleStore((s) => s.setTerrainState);
 
   const clickedPointMode = useMapStyleStore((s) => s.clickedPointMode);
 
+  const basemapQuery = useGetMapBasemapsQuery({ staleTime: 2 * 60 * 1000 });
+  const basemaps = useMemo(
+    () =>
+      extractWebMapItems(basemapQuery.data)
+        .map(normalizeWebMapBasemap)
+        .filter((basemap) => basemap.url_template)
+        .map((basemap) => ({ ...basemap, style: createRasterStyle(basemap) })),
+    [basemapQuery.data],
+  );
+
   const { debounce, isDebouncing, clearAllDebounce } = useDebounceStore();
+  const isTerrainDisabled = terrainLoading || !terrainSupported;
 
   useEffect(() => {
     return () => {
@@ -40,10 +86,14 @@ export function StyleChange() {
 
       {/* Map Style Selection */}
       {clickedPointMode && (
-        <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
-          <span className="font-medium">Chế độ xem AQI đang bật.</span>
-          <br />
-          <span className="text-xs">Tắt chế độ để thay đổi kiểu bản đồ.</span>
+        <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-(--warning-subtle) p-3 text-(--warning-subtle-foreground)">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          <div>
+            <p className="text-sm font-medium">Chế độ xem AQI đang bật.</p>
+            <p className="mt-0.5 text-xs opacity-80">
+              Tắt chế độ để thay đổi kiểu bản đồ.
+            </p>
+          </div>
         </div>
       )}
       <div className="grid grid-cols-2 gap-2">
@@ -92,32 +142,84 @@ export function StyleChange() {
         })}
       </div>
 
+      {basemaps.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-foreground">Bản đồ nền</p>
+          <div className="grid grid-cols-2 gap-2">
+            {basemaps.map((basemap) => {
+              const isStyleChanging = isDebouncing("mapStyleChange");
+              const isDisabled = isStyleChanging || clickedPointMode;
+              const isSelected = selectedStyle === basemap.style;
+
+              return (
+                <Tooltip key={basemap.code}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant={!isDisabled && isSelected ? "soft-primary" : "outline"}
+                      size="sm"
+                      disabled={isDisabled}
+                      className="flex h-auto w-full flex-col items-center gap-1 rounded-lg p-2"
+                      onClick={() => {
+                        if (isDisabled || isSelected) return;
+                        setMapStyle(basemap.style, { terrainSupported: false });
+                        debounce("mapStyleChange", () => {}, 1500);
+                      }}
+                    >
+                      <Globe2 className="h-5 w-5" />
+                      <span className="text-center text-xs leading-tight">{basemap.name_vi}</span>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{basemap.attribution || basemap.provider || basemap.name_vi}</TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
       {/* Display Options */}
       <div className="space-y-2">
         {/* 3D Terrain Toggle */}
-        <label
-          htmlFor="terrain"
-          className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card transition-colors cursor-pointer hover:bg-accent/10"
-        >
-          <Checkbox
-            id="terrain"
-            checked={terrainState}
-            disabled={terrainLoading}
-            onCheckedChange={(checked) => {
-              const nextTerrainState = checked === true;
-              setTerrainState(nextTerrainState);
-            }}
-          />
-          <div className="flex flex-col flex-1">
-            <span className="text-sm font-medium text-foreground">
-              Hiển thị địa hình 3D
-            </span>
-            <span className="text-xs text-muted-foreground">
-              Bật/tắt hiển thị địa hình 3D
-            </span>
-          </div>
-          {terrainLoading && <LoadingInline size="small" />}
-        </label>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Label
+              htmlFor="terrain"
+              aria-disabled={isTerrainDisabled}
+              className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${
+                isTerrainDisabled
+                  ? "cursor-not-allowed border-border/60 bg-muted/80"
+                  : "cursor-pointer border-border bg-card hover:bg-accent/10"
+              }`}
+            >
+              <Checkbox
+                id="terrain"
+                checked={terrainSupported && terrainState}
+                disabled={isTerrainDisabled}
+                onCheckedChange={(checked) => {
+                  if (!terrainSupported) return;
+                  const nextTerrainState = checked === true;
+                  setTerrainState(nextTerrainState);
+                }}
+              />
+              <div className="flex flex-1 flex-col">
+                <span
+                  className={`text-sm font-medium ${
+                    isTerrainDisabled ? "text-muted-foreground" : "text-foreground"
+                  }`}
+                >
+                  Hiển thị địa hình 3D
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Bật/tắt hiển thị địa hình 3D
+                </span>
+              </div>
+              {terrainLoading && <LoadingInline size="small" />}
+            </Label>
+          </TooltipTrigger>
+          {!terrainSupported && (
+            <TooltipContent>Bản đồ nền dùng tile không hỗ trợ địa hình 3D.</TooltipContent>
+          )}
+        </Tooltip>
       </div>
     </div>
   );

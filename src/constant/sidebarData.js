@@ -1,16 +1,25 @@
-import { Layers, Waves, Satellite, TreePine, History } from "lucide-react";
+import {
+  GitCompareArrows,
+  Layers,
+  Waves,
+  Satellite,
+  TreePine,
+} from "lucide-react";
 import { DataLayers } from "@/components/Map/Sidebar/elements/Datalyer";
 import { FloodHydrology } from "@/components/Map/Sidebar/elements/FloodHydrology";
-import { SingleMode } from "@/components/Map/Sidebar/elements/SatelliteControll";
+import {
+  CompareMode,
+  SingleMode,
+} from "@/components/Map/Sidebar/elements/SatelliteControll";
 import { ForestClassification } from "@/components/Map/Sidebar/elements/ForestClassification";
-import { TimeSeries } from "@/components/Map/Sidebar/elements/TimeSeries";
 
 export const trackMapping = [
   {
     id: "layers",
     icon: Layers,
     label: "Lớp dữ liệu bản đồ",
-    color: "text-blue-500",
+    description: "Tìm kiếm, bật tắt lớp dữ liệu và chọn bản đồ nền",
+    color: "text-primary",
     component: DataLayers,
     default: true,
   },
@@ -18,29 +27,33 @@ export const trackMapping = [
     id: "flood-hydrology",
     icon: Waves,
     label: "Ngập lụt và thủy văn",
+    description: "Theo dõi hiện trạng, nguy cơ và tác động ngập lụt",
     component: FloodHydrology,
-    color: "text-sky-600",
+    color: "text-info",
   },
 
   {
     id: "forestClassification",
     icon: TreePine,
     label: "Phân loại rừng",
+    description: "Xem kết quả phân loại lớp phủ rừng theo kỳ công bố",
     component: ForestClassification,
-    color: "text-green-600",
-  },
-  {
-    id: "timeSeries",
-    icon: History,
-    label: "Ảnh theo thời gian",
-    component: TimeSeries,
-    color: "text-purple-500",
+    color: "text-success",
   },
   {
     id: "spatial-analysis",
     icon: Satellite,
     label: "Phân tích ảnh vệ tinh",
+    description: "Phân tích ảnh vệ tinh trong một khoảng thời gian",
     component: SingleMode,
-    color: "text-indigo-500",
+    color: "text-primary",
+  },
+  {
+    id: "compare-mode",
+    icon: GitCompareArrows,
+    label: "So sánh ảnh vệ tinh",
+    description: "So sánh hai kỳ ảnh bằng bản đồ chia đôi",
+    component: CompareMode,
+    color: "text-primary",
   },
 ];

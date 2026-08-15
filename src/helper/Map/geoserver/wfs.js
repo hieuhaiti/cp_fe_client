@@ -1,42 +1,29 @@
-import {
-  GEOSERVER_DEFAULT_VERSIONS,
-  GEOSERVER_OUTPUT_FORMATS,
-  GEOSERVER_SERVICE_TYPES,
-} from "@/constant/geoserverData";
-import {
-  buildGeoServerWorkspaceUrl,
-  getGeoServerPublicUrl,
-  getOgcLayerName,
-  getOgcWorkspace,
-} from "./common";
+import { buildMapProxyWfsUrl } from "./mapProxy";
+import { useMapStore } from "@/stores/Map/useMapStore";
 
-export const buildWfsFeatureUrl = (
+const WFS_CACHE_TTL_MS = 5 * 60_000;
+const pendingWfsRequests = new Map();
+
+const normalizeWfsOptions = ({
+  count = 5000,
+  srsName = "EPSG:4326",
+  bbox,
+} = {}) => ({ count, srsName, bbox });
+
+const buildWfsCacheKey = (layer, options) =>
+  JSON.stringify([
+    layer?.layer_id ?? layer?.layerId ?? layer?.id ?? layer?.code,
+    layer?.geoserver_layer ?? layer?.geoserverLayer ?? "",
+    layer?.updated_at ?? layer?.updatedAt ?? "",
+    options.count,
+    options.srsName,
+    options.bbox ?? "",
+  ]);
+
+export const buildWfsFeatureUrl = async (
   layer,
   { count = 5000, srsName = "EPSG:4326", bbox } = {},
-) => {
-  const geoserverUrl = getGeoServerPublicUrl(layer);
-  const workspace = getOgcWorkspace(layer);
-  const ogcLayerName = getOgcLayerName(layer);
-  if (!geoserverUrl || !ogcLayerName) return "";
-
-  const params = new URLSearchParams({
-    service: GEOSERVER_SERVICE_TYPES.WFS,
-    version: GEOSERVER_DEFAULT_VERSIONS[GEOSERVER_SERVICE_TYPES.WFS],
-    request: "GetFeature",
-    typeNames: ogcLayerName,
-    outputFormat: GEOSERVER_OUTPUT_FORMATS.WFS_GEOJSON,
-    srsName,
-    count: String(count),
-  });
-
-  if (bbox) params.set("bbox", bbox);
-
-  return `${buildGeoServerWorkspaceUrl(
-    geoserverUrl,
-    workspace,
-    "wfs",
-  )}?${params.toString()}`;
-};
+) => buildMapProxyWfsUrl(layer, { count, srsName, bbox });
 
 // Mapbox GL supercluster (cluster: true) chỉ hoạt động với Point.
 // Nếu backend WFS trả Multi* (do bảng PostGIS dùng type Multi*), tách thành
@@ -70,21 +57,50 @@ const explodeMultiFeatures = (features) => {
 };
 
 export const fetchWfsGeoJson = async (layer, options) => {
-  const url = buildWfsFeatureUrl(layer, options);
-  if (!url) {
-    return { type: "FeatureCollection", features: [] };
+  const normalizedOptions = normalizeWfsOptions(options);
+  const cacheKey = buildWfsCacheKey(layer, normalizedOptions);
+  const mapStore = useMapStore.getState();
+  const cached = mapStore.getWfsGeoJsonCacheEntry(cacheKey);
+
+  if (cached?.expiresAt > Date.now()) {
+    return cached.data;
   }
 
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`GeoServer WFS ${response.status}`);
+  const pendingRequest = pendingWfsRequests.get(cacheKey);
+  if (pendingRequest) return pendingRequest;
+
+  const request = (async () => {
+    const url = await buildWfsFeatureUrl(layer, normalizedOptions);
+    if (!url) {
+      return { type: "FeatureCollection", features: [] };
+    }
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`GeoServer WFS ${response.status}`);
+    }
+
+    const data = await response.json();
+    const rawFeatures = Array.isArray(data?.features) ? data.features : [];
+    const geojson = {
+      type: "FeatureCollection",
+      features: explodeMultiFeatures(rawFeatures),
+    };
+
+    useMapStore
+      .getState()
+      .setWfsGeoJsonCacheEntry(
+        cacheKey,
+        geojson,
+        Date.now() + WFS_CACHE_TTL_MS,
+      );
+    return geojson;
+  })();
+
+  pendingWfsRequests.set(cacheKey, request);
+  try {
+    return await request;
+  } finally {
+    pendingWfsRequests.delete(cacheKey);
   }
-
-  const data = await response.json();
-  const rawFeatures =
-    data?.type === "FeatureCollection"
-      ? Array.isArray(data.features) ? data.features : []
-      : Array.isArray(data?.features) ? data.features : [];
-
-  return { type: "FeatureCollection", features: explodeMultiFeatures(rawFeatures) };
 };

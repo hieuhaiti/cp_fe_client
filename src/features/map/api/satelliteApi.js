@@ -123,6 +123,7 @@ export const SatelliteService = {
       endDate: params?.endDate,
       collection: params?.collection,
       cloudCover: params?.cloudCover,
+      ndviMinThresh: params?.ndviMinThresh,
     };
 
     return service(requestParams);

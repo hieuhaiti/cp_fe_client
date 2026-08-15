@@ -3,7 +3,9 @@ import { ChevronDown, ChevronUp, Layers } from "lucide-react";
 import { useSatelliteStore } from "@/stores/Map/Sidebar/useSatelliteStore";
 import { LAYER_CONFIG } from "../shared/layerConfig";
 import LayerControl from "../shared/LayerControl";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 /**
  * 2-column layer manager for CompareMode.
@@ -38,7 +40,7 @@ function LayerManager() {
 
   const renderLayerList = (layers, accentClass) =>
     layers.length === 0 ? (
-      <p className="text-xs text-foreground/40 italic">Chưa có dữ liệu</p>
+      <p className="text-xs italic text-muted-foreground">Chưa có dữ liệu</p>
     ) : (
       layers.map((layer) => (
         <LayerControl
@@ -57,7 +59,7 @@ function LayerManager() {
     );
 
   return (
-    <div className="bg-card overflow-hidden">
+    <Card className="gap-0 overflow-hidden py-0">
       <Button
         type="button"
         variant={open ? "soft-primary" : "outline"}
@@ -70,14 +72,14 @@ function LayerManager() {
           <span className="text-sm font-semibold text-foreground">
             Quản lý Layer
           </span>
-          <span className="text-xs bg-accent/20 text-accent px-2 py-0.5 rounded-full">
+          <Badge variant="soft-primary" className="text-[10px]">
             {comparisonImages.length}
-          </span>
+          </Badge>
         </div>
         {open ? (
-          <ChevronUp size={16} className="text-foreground/60" />
+          <ChevronUp size={16} className="text-muted-foreground" />
         ) : (
-          <ChevronDown size={16} className="text-foreground/60" />
+          <ChevronDown size={16} className="text-muted-foreground" />
         )}
       </Button>
 
@@ -86,25 +88,25 @@ function LayerManager() {
           <div className="space-y-3">
             {/* Current period */}
             <div className="space-y-1.5">
-              <p className="text-xs font-semibold text-blue-500 flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
+              <p className="flex items-center gap-1 text-xs font-semibold text-info">
+                <span className="inline-block size-2 rounded-full bg-info" />
                 Kỳ hiện tại
               </p>
-              {renderLayerList(leftLayers, "text-blue-500 bg-blue-500/10")}
+              {renderLayerList(leftLayers, "text-(--info-subtle-foreground) bg-(--info-subtle)")}
             </div>
 
             {/* Reference period */}
             <div className="space-y-1.5">
-              <p className="text-xs font-semibold text-orange-500 flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />
+              <p className="flex items-center gap-1 text-xs font-semibold text-warning">
+                <span className="inline-block size-2 rounded-full bg-warning" />
                 Kỳ tham chiếu
               </p>
-              {renderLayerList(rightLayers, "text-orange-500 bg-orange-500/10")}
+              {renderLayerList(rightLayers, "text-(--warning-subtle-foreground) bg-(--warning-subtle)")}
             </div>
           </div>
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 

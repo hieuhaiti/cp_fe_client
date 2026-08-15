@@ -11,8 +11,10 @@ import {
   ChevronUp,
   BarChart2,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import {
   Tooltip,
   TooltipContent,
@@ -128,8 +130,8 @@ function StatsRows({ layerType, stats }) {
     <div className="space-y-1">
       {rows.map(({ label, value }) => (
         <div key={label} className="flex items-center justify-between gap-2">
-          <span className="text-[10px] text-foreground/50">{label}</span>
-          <span className="text-[10px] font-medium text-foreground/80">{value}</span>
+          <span className="text-[10px] text-muted-foreground">{label}</span>
+          <span className="text-[10px] font-medium text-foreground">{value}</span>
         </div>
       ))}
     </div>
@@ -159,13 +161,13 @@ function LayerControl({
   const dotClass = compact ? "w-2.5 h-2.5" : "w-3 h-3";
 
   return (
-    <Card className="p-2 bg-surface-muted/50 border-border/50 hover:border-border transition-colors">
+    <Card variant="outline" className="gap-0 border-border/50 bg-muted/30 p-2 transition-colors hover:border-border">
       <div className="space-y-2">
         {/* Layer Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <div
-              className={`${dotClass} rounded-full shrink-0 ${config?.color || "bg-gray-400"}`}
+              className={`${dotClass} rounded-full shrink-0 ${config?.color || "bg-muted-foreground"}`}
             />
             {compact ? (
               /* Compare: just name, cloud cover moves to date row */
@@ -180,13 +182,13 @@ function LayerControl({
                     {config?.label || `Layer ${index + 1}`}
                   </p>
                   {layer.cloudCover != null && (
-                    <span className="inline-flex items-center gap-0.5 text-xs font-medium px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-500 shrink-0">
+                    <Badge variant="soft-info" className="shrink-0 gap-0.5 text-[10px]">
                       <Cloud size={10} />
                       {layer.cloudCover}%
-                    </span>
+                    </Badge>
                   )}
                 </div>
-                <p className="text-xs text-foreground/50 truncate">
+                <p className="truncate text-xs text-muted-foreground">
                   {formatDateRange(layer.date)}
                 </p>
               </div>
@@ -209,7 +211,7 @@ function LayerControl({
                   {visible ? (
                     <Eye size={iconSize} className="text-primary" />
                   ) : (
-                    <EyeOff size={iconSize} className="text-foreground/40" />
+                    <EyeOff size={iconSize} className="text-muted-foreground" />
                   )}
                 </Button>
               </TooltipTrigger>
@@ -224,6 +226,7 @@ function LayerControl({
                 <Button
                   variant={hasRasterDownload ? "soft-primary" : "outline"}
                   size="icon-xs"
+                  aria-label="Tải ảnh raster"
                   onClick={() => {
                     if (!hasRasterDownload) return;
                     setDownloadType("raster");
@@ -232,7 +235,7 @@ function LayerControl({
                   className={
                     hasRasterDownload
                       ? "text-primary"
-                      : "text-foreground/25 cursor-not-allowed"
+                      : "cursor-not-allowed text-muted-foreground"
                   }
                   disabled={!hasRasterDownload}
                 >
@@ -252,6 +255,7 @@ function LayerControl({
                 <Button
                   variant={hasVectorDownload ? "soft-info" : "outline"}
                   size="icon-xs"
+                  aria-label="Tải dữ liệu vector"
                   onClick={() => {
                     if (!hasVectorDownload) return;
                     setDownloadType("vector");
@@ -260,7 +264,7 @@ function LayerControl({
                   className={
                     hasVectorDownload
                       ? "text-primary"
-                      : "text-foreground/25 cursor-not-allowed"
+                      : "cursor-not-allowed text-muted-foreground"
                   }
                   disabled={!hasVectorDownload}
                 >
@@ -292,10 +296,10 @@ function LayerControl({
                     Xác nhận tải xuống{" "}
                     {downloadType === "vector" ? "vector" : "raster"}
                   </DialogTitle>
-                  <DialogDescription className="text-sm text-foreground/70">
+                  <DialogDescription className="text-sm text-muted-foreground">
                     {downloadType === "vector"
                       ? "Lưu ý: File vector sẽ được cắt theo vùng nghiên cứu — buffer 20km quanh biên giới."
-                      : "Ảnh raster tải về bao phủ phạm vi Cẩm Phả và sử dụng độ phân giải được cấu hình trên server. GeoTIFF là định dạng GIS chuyên dụng; hãy mở bằng QGIS hoặc ArcGIS thay vì trình duyệt."}
+                      : "Ảnh raster được cắt theo đúng ranh giới RG Cẩm Phả; phần nằm ngoài ranh giới là NoData (GeoTIFF vẫn có khung bao chữ nhật theo chuẩn raster). Ảnh sử dụng độ phân giải được cấu hình trên server và nên mở bằng QGIS hoặc ArcGIS."}
                   </DialogDescription>
                 </DialogHeader>
                 {downloadError && (
@@ -375,14 +379,14 @@ function LayerControl({
         {/* Date + Cloud cover row — compact (Compare) layout only */}
         {compact && (
           <div className="flex items-center justify-between gap-1">
-            <p className="text-xs text-foreground/50 truncate leading-tight">
+            <p className="truncate text-xs leading-tight text-muted-foreground">
               {formatDateRange(layer.date)}
             </p>
             {layer.cloudCover != null && (
-              <span className="inline-flex items-center gap-0.5 text-xs font-medium px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-500 shrink-0">
+              <Badge variant="soft-info" className="shrink-0 gap-0.5 text-[10px]">
                 <Cloud size={10} />
                 {layer.cloudCover}%
-              </span>
+              </Badge>
             )}
           </div>
         )}
@@ -390,12 +394,13 @@ function LayerControl({
         {/* Opacity */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label className="text-xs text-foreground/60">Độ trong suốt</label>
-            <span
-              className={`text-xs font-medium px-1.5 py-0.5 rounded ${accentClass}`}
+            <Label className="text-xs text-muted-foreground">Độ trong suốt</Label>
+            <Badge
+              variant="outline"
+              className={`text-[10px] ${accentClass}`}
             >
               {Math.round(opacity * 100)}%
-            </span>
+            </Badge>
           </div>
           <Slider
             min={0}
@@ -410,21 +415,24 @@ function LayerControl({
         {/* Stats panel */}
         {layer.stats && (
           <div className="border-t border-border/40 pt-1.5">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="xs"
               onClick={() => setStatsOpen((o) => !o)}
-              className="flex items-center justify-between w-full text-left"
+              className="h-auto w-full justify-between p-0 text-left"
+              aria-expanded={statsOpen}
             >
-              <span className="flex items-center gap-1 text-[10px] font-semibold text-foreground/60 uppercase tracking-wide">
+              <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                 <BarChart2 size={10} />
                 Chỉ số
               </span>
               {statsOpen ? (
-                <ChevronUp size={10} className="text-foreground/40" />
+                <ChevronUp size={10} className="text-muted-foreground" />
               ) : (
-                <ChevronDown size={10} className="text-foreground/40" />
+                <ChevronDown size={10} className="text-muted-foreground" />
               )}
-            </button>
+            </Button>
             {statsOpen && (
               <div className="mt-1.5">
                 <StatsRows layerType={layer.layerType} stats={layer.stats} />

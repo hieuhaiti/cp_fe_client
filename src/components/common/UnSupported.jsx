@@ -18,7 +18,7 @@ function UnSupported() {
       <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-6">
         <div className="text-center">
           <div className="flex justify-center mb-6">
-            <Monitor className="w-20 h-20 text-teal-500" />
+            <Monitor className="w-20 h-20 text-primary" />
           </div>
 
           <h2 className="mb-4 text-2xl font-semibold text-foreground">

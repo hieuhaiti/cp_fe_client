@@ -30,8 +30,8 @@ Không sửa Postman collection hoặc worker khi chỉ đồng bộ service cli
 | --- | --- | --- | --- |
 | [`authService.js`](../src/services/authService.js) | Xác thực | register, login, refresh, password, email verification, Google OAuth, profile, logout | Khớp |
 | [`userService.js`](../src/services/userService.js) | Người dùng | CRUD người dùng, role, active, reset password | Khớp route `/admin/users` |
-| [`notificationService.js`](../src/services/notificationService.js) | Thông báo REST | list, unread count, read, device token, send | Khớp |
-| [`realtimeNotificationService.js`](../src/services/realtimeNotificationService.js) | Thông báo realtime | WebSocket `/ws`, subscribe `all`, `role_{roleCode}`, `remote_sensing:{imageId}` | Khớp Postman WS |
+| [`notificationService.js`](../src/services/notificationService.js) | Thông báo REST | inbox của tôi, unread count, read, delete, device token | Khớp |
+| [`realtimeNotificationService.js`](../src/services/realtimeNotificationService.js) | Thông báo realtime | WebSocket `/ws`, private user và `role:{roleCode}` | Khớp server |
 | [`newsService.js`](../src/services/newsService.js) | Tin tức | public list/detail; admin detail, create, patch, put, delete | Khớp route `/admin/news` |
 | [`commentsService.js`](../src/services/commentsService.js) | Tin tức | list/create comments, approve, delete | Khớp |
 | [`documentsService.js`](../src/services/documentsService.js) | Báo cáo/Văn bản | public/admin detail, upload, patch, put, delete | Khớp route `/admin/documents` |

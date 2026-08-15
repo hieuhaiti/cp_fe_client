@@ -3,7 +3,9 @@ import { ChevronDown, ChevronUp, Layers } from "lucide-react";
 import { useSatelliteStore } from "@/stores/Map/Sidebar/useSatelliteStore";
 import { LAYER_CONFIG } from "../shared/layerConfig";
 import LayerControl from "../shared/LayerControl";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 /**
  * Manages all loaded satellite layers in SingleMode.
@@ -23,7 +25,7 @@ function LayerManager() {
   if (!satelliteLayers || satelliteLayers.length === 0) return null;
 
   return (
-    <div className="bg-card overflow-hidden">
+    <Card className="gap-0 overflow-hidden py-0">
       <Button
         type="button"
         variant={open ? "soft-primary" : "outline"}
@@ -36,14 +38,14 @@ function LayerManager() {
           <span className="text-sm font-semibold text-foreground">
             Quản lý Layer
           </span>
-          <span className="text-xs bg-accent/20 text-accent px-2 py-0.5 rounded-full">
+          <Badge variant="soft-primary" className="text-[10px]">
             {satelliteLayers.length}
-          </span>
+          </Badge>
         </div>
         {open ? (
-          <ChevronUp size={16} className="text-foreground/60" />
+          <ChevronUp size={16} className="text-muted-foreground" />
         ) : (
-          <ChevronDown size={16} className="text-foreground/60" />
+          <ChevronDown size={16} className="text-muted-foreground" />
         )}
       </Button>
 
@@ -72,7 +74,7 @@ function LayerManager() {
           ))}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 

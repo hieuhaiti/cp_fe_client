@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { Bell, CheckCheck } from "lucide-react";
+import { Bell, CheckCheck, Trash2 } from "lucide-react";
 import { toast } from "react-toastify";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  deleteNotification,
   markAllNotificationsAsRead,
   markNotificationAsRead,
   useGetNotificationsQuery,
@@ -22,10 +23,24 @@ import {
 import { useNotificationWebSocket } from "@/hooks/useNotificationWebSocket";
 import { cn, formatDateTime } from "@/lib/utils";
 
-const params = { page: 1, limit: 10, onlyUnread: false };
+const params = { page: 1, limit: 10, unreadOnly: false };
+
+function isNotificationRead(notification) {
+  return Boolean(
+    notification?.isRead ??
+      notification?.is_read ??
+      notification?.readAt ??
+      notification?.read_at,
+  );
+}
+
+function notificationCreatedAt(notification) {
+  return notification?.createdAt ?? notification?.created_at ?? "";
+}
 
 function getNotificationPath(notification) {
   const data = notification?.data || notification?.payload;
+  const channel = notification?.channel ?? data?.channel;
   const newsId = data?.newsId ?? data?.news_id;
   if (
     typeof data?.path === "string" &&
@@ -34,12 +49,17 @@ function getNotificationPath(notification) {
   ) {
     return data.path;
   }
-  if (notification?.channel === "feedback") return "/feedback/mine";
-  if (notification?.channel === "comment") {
+  if (channel === "feedback" || notification?.type?.startsWith("field_report_")) {
+    return "/feedback/mine";
+  }
+  if (channel === "comment") {
     return newsId ? `/news/${newsId}` : "/news";
   }
-  if (notification?.channel === "news") {
+  if (channel === "news") {
     return newsId ? `/news/${newsId}` : "/news";
+  }
+  if (channel === "forest" || channel === "flood") {
+    return "/map";
   }
   return null;
 }
@@ -65,8 +85,9 @@ export default function NotificationMenu({ enabled = true }) {
     [query.data],
   );
   const unreadCount = Number(
-    unreadQuery.data?.data?.unread ??
-      notifications.filter((item) => !item.isRead).length,
+    unreadQuery.data?.data?.count ??
+      unreadQuery.data?.data?.unread ??
+      notifications.filter((item) => !isNotificationRead(item)).length,
   );
 
   const refreshNotifications = useCallback(() => {
@@ -96,6 +117,14 @@ export default function NotificationMenu({ enabled = true }) {
   const markAllMutation = useMutation({
     mutationFn: markAllNotificationsAsRead,
     onSuccess: refreshNotifications,
+  });
+  const deleteMutation = useMutation({
+    mutationFn: deleteNotification,
+    onSuccess: () => {
+      refreshNotifications();
+      toast.success("Đã xoá thông báo");
+    },
+    onError: () => toast.error("Không thể xoá thông báo."),
   });
 
   if (!enabled) return null;
@@ -178,23 +207,42 @@ export default function NotificationMenu({ enabled = true }) {
               key={notification.id}
               className={cn(
                 "mb-1 cursor-pointer flex-col items-start gap-1 rounded-xl p-3 whitespace-normal",
-                !notification.isRead && "bg-(--primary-subtle)",
+                !isNotificationRead(notification) && "bg-(--primary-subtle)",
               )}
               onSelect={() => {
-                if (!notification.isRead) {
+                if (!isNotificationRead(notification)) {
                   markOneMutation.mutate(notification.id);
                 }
                 const path = getNotificationPath(notification);
                 if (path) navigate(path);
               }}
             >
-              <div className="flex w-full items-start justify-between gap-3">
-                <p className="text-sm font-semibold text-foreground">
+              <div className="flex w-full items-start gap-2">
+                <p className="min-w-0 flex-1 text-sm font-semibold text-foreground">
                   {notification.title || "Thông báo"}
                 </p>
-                {!notification.isRead && (
-                  <span className="mt-1.5 size-2 shrink-0 rounded-full bg-primary" />
+                {!isNotificationRead(notification) && (
+                  <span className="mt-2 size-2 shrink-0 rounded-full bg-primary" />
                 )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="-mr-1 -mt-1 shrink-0 text-muted-foreground hover:text-destructive"
+                  aria-label="Xoá thông báo"
+                  disabled={
+                    deleteMutation.isPending &&
+                    String(deleteMutation.variables) === String(notification.id)
+                  }
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    deleteMutation.mutate(notification.id);
+                  }}
+                >
+                  <Trash2 />
+                </Button>
               </div>
               {notification.body && (
                 <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
@@ -202,7 +250,7 @@ export default function NotificationMenu({ enabled = true }) {
                 </p>
               )}
               <time className="text-[11px] text-muted-foreground">
-                {formatDateTime(notification.createdAt)}
+                {formatDateTime(notificationCreatedAt(notification))}
               </time>
             </DropdownMenuItem>
           ))}

@@ -18,9 +18,9 @@ export async function uploadFile(file, category) {
     },
   );
   const presign = presignResponse?.data || presignResponse;
-  const { uploadUrl, objectId } = presign || {};
+  const { uploadUrl, id } = presign || {};
 
-  if (!uploadUrl || objectId === undefined || objectId === null) {
+  if (!uploadUrl || id === undefined || id === null) {
     throw new Error("Máy chủ không trả về URL hoặc mã đối tượng để tải tệp lên.");
   }
 
@@ -34,8 +34,8 @@ export async function uploadFile(file, category) {
   }
 
   await mutater(
-    `${STORAGE_PATH}/uploads/${encodeURIComponent(String(objectId))}/commit`,
+    `${STORAGE_PATH}/uploads/${encodeURIComponent(String(id))}/commit`,
     "POST",
   );
-  return objectId;
+  return id;
 }

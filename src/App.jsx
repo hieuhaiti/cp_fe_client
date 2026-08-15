@@ -10,10 +10,6 @@ import { onSessionExpired } from "@/lib/sessionEvents";
 const Map = lazy(() => import("@/pages/Map"));
 const News = lazy(() => import("@/pages/News/NewsPage"));
 const NewsDetailPage = lazy(() => import("@/pages/News/NewsDetailPage"));
-const DocumentsPage = lazy(() => import("@/pages/Documents/DocumentsPage"));
-const DocumentDetailPage = lazy(
-  () => import("@/pages/Documents/DocumentDetailPage"),
-);
 const PdfMapsPage = lazy(() => import("@/pages/PdfMaps/PdfMapsPage"));
 const PdfMapDetailPage = lazy(
   () => import("@/pages/PdfMaps/PdfMapDetailPage"),
@@ -74,8 +70,6 @@ export default function App() {
           <Route path="/map" element={<Map />} />
           <Route path="/news" element={<News />} />
           <Route path="/news/:slugOrId" element={<NewsDetailPage />} />
-          <Route path="/documents" element={<DocumentsPage />} />
-          <Route path="/documents/:id" element={<DocumentDetailPage />} />
           <Route path="/pdf-maps" element={<PdfMapsPage />} />
           <Route path="/pdf-maps/:id" element={<PdfMapDetailPage />} />
           <Route path="/feedback/mine" element={<MyFeedbackPage />} />

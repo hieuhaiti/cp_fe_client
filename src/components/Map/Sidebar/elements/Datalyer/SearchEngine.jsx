@@ -75,7 +75,9 @@ export function SearchEngine() {
     try {
       const layerStore = useDataLayerStore.getState();
       const ogcLayer = layerStore.ogcLayers.find(
-        (layer) => String(layer.code || layer.id) === String(layerId),
+        (layer) =>
+          String(layer.id) === String(layerId) ||
+          String(layer.code) === String(layerId),
       );
       if (ogcLayer && !ogcLayer.enabled) {
         layerStore.toggleOgcLayerEnabled(ogcLayer.id, true);

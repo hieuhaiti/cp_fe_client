@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react";
 function LoadingInline({
   position = "inline",
   size = "small",
-  color,
+  color = "primary",
 }) {
   const colorClass = {
     primary: "text-primary",
@@ -16,6 +16,7 @@ function LoadingInline({
     destructive: "text-destructive",
     info: "text-info",
     "muted-foreground": "text-muted-foreground",
+    current: "text-current",
   }[color] ?? "text-current";
 
   // inline mode (mặc định)

@@ -33,7 +33,7 @@ export default function Sidebar() {
           </h3>
         </div>
 
-        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent p-3">
+        <div className="flex-1 overflow-y-auto p-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {activeItem.component && <activeItem.component />}
         </div>
 

@@ -490,7 +490,7 @@ export const useSatelliteStore = create(
           return;
         }
 
-        console.warn("⚠️  No images to display. Clearing satelliteLayers.");
+        // Chưa phân tích ảnh là trạng thái bình thường, không phải cảnh báo.
         set({ satelliteLayers: [] });
       },
       // Part 6: UI states

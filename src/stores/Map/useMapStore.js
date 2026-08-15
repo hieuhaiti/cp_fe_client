@@ -9,14 +9,12 @@ export const useMapStore = create((set, get) => ({
   // Dữ liệu category layers đang hiển thị trên map: { [sourceId]: geojson }
   categoryLayersData: {},
   ogcLayersData: {},
-  // Time-series raster layers: { [groupCode]: { group, step, tileUrl } }
-  timeSeriesLayersData: {},
-  // Trạng thái điều khiển panel Ảnh theo thời gian — giữ qua chuyển tab:
-  // { [groupCode]: { stepIndex, isPlaying, intervalMs } }
-  timeSeriesPanelState: {},
+  mapLegends: {},
+  // Cache WFS GeoJSON dùng chung cho single/split map. Promise đang chạy được
+  // dedupe ở helper WFS; store chỉ giữ dữ liệu đã tải để có thể tái sử dụng.
+  wfsGeoJsonCache: {},
   // compare map
   isSplitMode: false,
-
   // Sidebar - panel đang active (chia sẻ giữa floating icon bar và content panel)
   activePanel: null,
   setActivePanel: (activePanel) => set({ activePanel }),
@@ -70,10 +68,6 @@ export const useMapStore = create((set, get) => ({
     }));
   },
 
-  setSplitMode: (isSplitMode) => {
-    set({ isSplitMode });
-  },
-
   removeCategoryLayerData: (sourceId) => {
     set((state) => {
       const next = { ...state.categoryLayersData };
@@ -107,39 +101,54 @@ export const useMapStore = create((set, get) => ({
     set({ ogcLayersData: {} });
   },
 
-  // ── Time-series raster layers ─────────────────────────────────────────────
-  setTimeSeriesLayer: (groupCode, payload) => {
+  setSplitMode: (isSplitMode) => {
+    set({ isSplitMode });
+  },
+
+  setMapLegend: (legendId, legend) => {
     set((state) => ({
-      timeSeriesLayersData: {
-        ...state.timeSeriesLayersData,
-        [groupCode]: payload,
+      mapLegends: {
+        ...state.mapLegends,
+        [legendId]: legend,
       },
     }));
   },
 
-  removeTimeSeriesLayer: (groupCode) => {
+  removeMapLegend: (legendId) => {
     set((state) => {
-      const nextData = { ...state.timeSeriesLayersData };
-      delete nextData[groupCode];
-      const nextPanel = { ...state.timeSeriesPanelState };
-      delete nextPanel[groupCode];
-      return { timeSeriesLayersData: nextData, timeSeriesPanelState: nextPanel };
+      const next = { ...state.mapLegends };
+      delete next[legendId];
+      return { mapLegends: next };
     });
   },
 
-  clearAllTimeSeriesLayers: () => {
-    set({ timeSeriesLayersData: {}, timeSeriesPanelState: {} });
+  clearAllMapLegends: () => {
+    set({ mapLegends: {} });
   },
 
-  setTimeSeriesPanelState: (groupCode, patch) => {
-    set((state) => ({
-      timeSeriesPanelState: {
-        ...state.timeSeriesPanelState,
-        [groupCode]: {
-          ...(state.timeSeriesPanelState[groupCode] || {}),
-          ...patch,
+  getWfsGeoJsonCacheEntry: (cacheKey) =>
+    get().wfsGeoJsonCache[cacheKey] ?? null,
+
+  setWfsGeoJsonCacheEntry: (cacheKey, data, expiresAt) => {
+    set((state) => {
+      const now = Date.now();
+      const activeEntries = Object.fromEntries(
+        Object.entries(state.wfsGeoJsonCache).filter(
+          ([, entry]) => entry?.expiresAt > now,
+        ),
+      );
+
+      return {
+        wfsGeoJsonCache: {
+          ...activeEntries,
+          [cacheKey]: { data, expiresAt },
         },
-      },
-    }));
+      };
+    });
   },
+
+  clearWfsGeoJsonCache: () => {
+    set({ wfsGeoJsonCache: {} });
+  },
+
 }));

@@ -42,12 +42,14 @@ export const useDataLayerStore = create((set, get) => ({
     set((state) => {
       const currentLayers = state.ogcLayers;
       const mappedLayers = newLayers.map((layer, index) => {
-        const id = layer.code || layer.id;
+        // The map proxy routes require the numeric catalog layer ID.
+        // Keep `code` separately for stable Mapbox source/layer names.
+        const id = String(layer.id ?? layer.code);
         const existing = currentLayers.find((item) => item.id === id);
         const layerKind = layer.layer_kind === "basemap" ? "basemap" : "overlay";
         const isDefaultEnabled =
           !!layer.is_enable_default || !!layer.default_style?.visible_by_default;
-        const initialEnabled = layerKind === "basemap" ? true : isDefaultEnabled;
+        const initialEnabled = isDefaultEnabled;
 
         return {
           id,
@@ -55,8 +57,8 @@ export const useDataLayerStore = create((set, get) => ({
           name: layer.name_vi || layer.name_en || layer.name || layer.code,
           description: layer.description_vi || layer.description_en || "",
           category: layer.category || "",
+          category_name: layer.category_name || layer.categoryName || "",
           layer_kind: layerKind,
-          layer_group: layer.layer_group || "",
           geometry_type: layer.geometry_type,
           geoserver_layer: layer.geoserver_layer,
           geoserver_store: layer.geoserver_store,
@@ -68,6 +70,7 @@ export const useDataLayerStore = create((set, get) => ({
           max_zoom: layer.max_zoom,
           feature_count: layer.feature_count,
           default_style: layer.default_style || {},
+          legend: layer.legend || null,
           is_active: layer.is_active,
           is_public: layer.is_public,
           sort_order: layer.sort_order ?? index,
@@ -93,6 +96,22 @@ export const useDataLayerStore = create((set, get) => ({
           : layer,
       ),
     }));
+  },
+
+  setOgcLayersEnabled: (ids, enabled) => {
+    const layerIds = new Set(ids.map(String));
+
+    set((state) => {
+      let hasChanges = false;
+      const ogcLayers = state.ogcLayers.map((layer) => {
+        if (!layerIds.has(layer.id) || layer.enabled === enabled) return layer;
+
+        hasChanges = true;
+        return { ...layer, enabled };
+      });
+
+      return hasChanges ? { ogcLayers } : state;
+    });
   },
 
   resetOgcLayers: () => {

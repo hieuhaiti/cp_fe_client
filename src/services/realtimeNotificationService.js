@@ -1,6 +1,6 @@
 import { tokenManager } from "@/lib/tokenManager";
 
-const DEFAULT_CHANNELS = ["all"];
+const DEFAULT_CHANNELS = [];
 
 function normalizeChannels(channels = []) {
   const list = Array.isArray(channels) ? channels : [channels];
@@ -36,7 +36,7 @@ class RealtimeNotificationService {
     if (trackConsumer) this.activeConsumers += 1;
 
     const nextChannels = [
-      ...(roleCode ? [`role_${roleCode}`] : []),
+      ...(roleCode ? [`role:${roleCode}`] : []),
       ...normalizeChannels(channels),
     ];
     nextChannels.forEach((channel) => this.channels.add(channel));

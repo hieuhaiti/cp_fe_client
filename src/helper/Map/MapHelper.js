@@ -10,7 +10,8 @@ import {
   buildOgcPointLayerIds,
   buildOgcRasterLayerId,
   buildOgcSourceId as buildGeoServerSourceId,
-  buildWmsFeatureInfoUrl,
+  buildMapProxyWmsFeatureInfoUrl,
+  buildMapProxyWmsTileUrl,
   buildWmsTileUrl,
   fetchWfsGeoJson,
   getOgcGeometryPriority,
@@ -1381,10 +1382,53 @@ export const buildOgcLayerId = (sourceId) => buildOgcRasterLayerId(sourceId);
 
 export { buildOgcPointLayerIds, isOgcPointGeometry };
 
-export const buildOgcWmsTileUrl = (layer) => buildWmsTileUrl(layer);
+export const buildOgcWmsTileUrl = async (layer) => {
+  const proxyUrl = await buildMapProxyWmsTileUrl(layer);
+  if (proxyUrl) {
+    console.debug("[OGC-WMS] url-path=proxy layer_id=%s code=%s", layer?.layer_id, layer?.code);
+    return proxyUrl;
+  }
+  // Fallback: direct GeoServer WMS when registry layer_id is unavailable
+  console.debug("[OGC-WMS] url-path=fallback layer_id=%s code=%s geoserver_layer=%s", layer?.layer_id, layer?.code, layer?.geoserver_layer);
+  return buildWmsTileUrl(layer);
+};
 
 export const buildOgcFeatureInfoUrl = (map, layer, point) =>
-  buildWmsFeatureInfoUrl(map, layer, point);
+  buildMapProxyWmsFeatureInfoUrl(map, layer, point);
+
+const waitForMapStyle = (map) => {
+  if (!map || map._removed) return Promise.resolve(false);
+  if (map.isStyleLoaded()) return Promise.resolve(true);
+
+  return new Promise((resolve) => {
+    let settled = false;
+
+    const cleanup = () => {
+      map.off("style.load", handleReady);
+      map.off("idle", handleReady);
+      map.off("remove", handleRemove);
+    };
+    const finish = (isReady) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(isReady);
+    };
+    const handleReady = () => {
+      if (map._removed) {
+        finish(false);
+        return;
+      }
+      if (map.isStyleLoaded()) finish(true);
+    };
+    const handleRemove = () => finish(false);
+
+    map.on("style.load", handleReady);
+    map.on("idle", handleReady);
+    map.on("remove", handleRemove);
+    handleReady();
+  });
+};
 
 const moveLayerIfNeeded = (map, layerId, beforeId) => {
   if (beforeId && beforeId !== layerId && map.getLayer(layerId)) {
@@ -1406,11 +1450,7 @@ const addOrUpdateGeoServerPointLayer = async (
 
   try {
     const geojson = await fetchWfsGeoJson(layer);
-    if (map._removed) return;
-    if (!map.isStyleLoaded()) {
-      await new Promise((resolve) => map.once("idle", resolve));
-      if (map._removed) return;
-    }
+    if (!(await waitForMapStyle(map))) return;
 
     const existingSource = map.getSource(sourceId);
     if (existingSource?.setData) {
@@ -1513,32 +1553,49 @@ const addOrUpdateGeoServerPointLayer = async (
   }
 };
 
-const addOrUpdateGeoServerWmsLayer = (
+const addOrUpdateGeoServerWmsLayer = async (
   map,
   sourceId,
   layer,
   visible = true,
 ) => {
-  const tileUrl = buildOgcWmsTileUrl(layer);
+  const tileUrl = await buildOgcWmsTileUrl(layer);
   const ogcLayerName = getOgcLayerName(layer);
+
+  // [DBG-OGC] Trace: URL build result
+  console.debug("[OGC-WMS] sourceId=%s tileUrl=%s ogcLayerName=%s", sourceId, tileUrl || "(empty)", ogcLayerName || "(empty)");
+
   if (!map || !sourceId || !ogcLayerName || !tileUrl) {
+    console.warn("[OGC-WMS] early-exit: map=%s sourceId=%s ogcLayerName=%s tileUrl=%s", !!map, !!sourceId, !!ogcLayerName, !!tileUrl);
     return;
   }
 
   const mapLayerId = buildOgcLayerId(sourceId);
+  const isFloodLayer = layer?.category === "flood";
   const opacity =
     typeof layer?.default_style?.opacity === "number"
       ? layer.default_style.opacity
-      : 0.72;
+      : isFloodLayer
+        ? 0.88
+        : 0.72;
 
   try {
+    if (!(await waitForMapStyle(map))) {
+      console.warn("[OGC-WMS] waitForMapStyle returned false, skipping add for %s", sourceId);
+      return;
+    }
+
     const beforeId = getOgcLayerBeforeId(
       map,
       layer?.geometry_type,
       mapLayerId,
     );
 
-    if (!map.getSource(sourceId)) {
+    const sourceExists = !!map.getSource(sourceId);
+    const layerExists = !!map.getLayer(mapLayerId);
+    console.debug("[OGC-WMS] sourceId=%s sourceExists=%s layerExists=%s beforeId=%s opacity=%s visible=%s", sourceId, sourceExists, layerExists, beforeId, opacity, visible);
+
+    if (!sourceExists) {
       map.addSource(sourceId, {
         type: "raster",
         tiles: [tileUrl],
@@ -1547,9 +1604,10 @@ const addOrUpdateGeoServerWmsLayer = (
         maxzoom: layer?.max_zoom ?? 22,
         attribution: "GeoServer",
       });
+      console.debug("[OGC-WMS] addSource OK: %s → %s", sourceId, tileUrl);
     }
 
-    if (map.getLayer(mapLayerId)) {
+    if (layerExists) {
       map.setLayoutProperty(
         mapLayerId,
         "visibility",
@@ -1561,6 +1619,7 @@ const addOrUpdateGeoServerWmsLayer = (
         Math.max(0, Math.min(1, opacity)),
       );
       moveLayerIfNeeded(map, mapLayerId, beforeId);
+      console.debug("[OGC-WMS] updated existing layer %s visibility=%s opacity=%s", mapLayerId, visible, opacity);
       return;
     }
 
@@ -1583,8 +1642,9 @@ const addOrUpdateGeoServerWmsLayer = (
       },
       beforeId,
     );
+    console.debug("[OGC-WMS] addLayer OK: %s (before=%s, opacity=%s)", mapLayerId, beforeId, opacity);
   } catch (error) {
-    console.warn("Lỗi khi thêm/cập nhật OGC layer:", error.message);
+    console.warn("[OGC-WMS] ERROR for %s: %s", sourceId, error.message, error);
   }
 };
 
@@ -1600,7 +1660,7 @@ export const addOrUpdateGeoServerLayer = async (
     return;
   }
 
-  addOrUpdateGeoServerWmsLayer(map, sourceId, layer, visible);
+  await addOrUpdateGeoServerWmsLayer(map, sourceId, layer, visible);
 };
 
 export const removeGeoServerLayer = (map, sourceId) => {
@@ -1639,6 +1699,7 @@ export const addSatelliteLayerToMap = (
   layerId,
   opacity = 1,
   sourceIdOverride,
+  visible = true,
 ) => {
   if (!map) {
     console.error("[addSatelliteLayerToMap] Map is null/undefined");
@@ -1686,6 +1747,9 @@ export const addSatelliteLayerToMap = (
           ktGeometryPriority: GEOSERVER_LAYER_ORDER_PRIORITY.RASTER,
           ktGeometryType: "raster",
           ktManagedOverlay: true,
+        },
+        layout: {
+          visibility: visible ? "visible" : "none",
         },
         paint: {
           "raster-opacity": opacity,

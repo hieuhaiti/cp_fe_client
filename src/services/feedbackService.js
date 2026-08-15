@@ -104,12 +104,36 @@ export function getAdminFeedback(params = {}) {
   );
 }
 
+export function useGetAdminFeedbackQuery(params = {}, options = {}) {
+  return useQuery({
+    queryKey: ["feedback", "admin", params],
+    queryFn: () => getAdminFeedback(params),
+    ...options,
+  });
+}
+
 export function getAdminFeedbackDetail(feedbackId, lang = DEFAULT_LANG) {
+  // The authenticated detail endpoint selects the admin data scope from the
+  // caller's `field_report.read` permission. It is available on deployments
+  // that predate the optional `/admin/field-reports/:id` route.
   return fetcher(
-    withQuery(`${ADMIN_FEEDBACK_PATH}/${encodeURIComponent(feedbackId)}`, {
+    withQuery(`${FEEDBACK_PATH}/${encodeURIComponent(feedbackId)}`, {
       lang,
     }),
   );
+}
+
+export function useGetAdminFeedbackDetailQuery(feedbackId, options = {}) {
+  const { lang = DEFAULT_LANG, ...queryOptions } = options;
+
+  return useQuery({
+    queryKey: ["feedback", "admin", "detail", feedbackId],
+    queryFn: () => getAdminFeedbackDetail(feedbackId, lang),
+    enabled:
+      Boolean(feedbackId) &&
+      (queryOptions.enabled === undefined ? true : queryOptions.enabled),
+    ...queryOptions,
+  });
 }
 
 export function getAdminFeedbackMap(params = {}) {

@@ -8,10 +8,19 @@ import {
   Calendar,
   Info,
 } from "lucide-react";
-import LoadingInline from "@/components/common/LoadingInline";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Tooltip,
   TooltipContent,
@@ -54,6 +63,7 @@ function ConfigPanel() {
     setEndDate1,
     setStartDate2,
     setEndDate2,
+    setCollection,
     setCloudCover,
     toggleLayerType,
     setIsLoading,
@@ -68,6 +78,7 @@ function ConfigPanel() {
   const setSplitMode = useMapStore((s) => s.setSplitMode);
 
   const [open, setOpen] = useState(true);
+  const [comparisonNoteOpen, setComparisonNoteOpen] = useState(false);
 
   const { setLoading } = useLoadingStore();
 
@@ -138,19 +149,31 @@ function ConfigPanel() {
         cloudCover,
       };
 
-      // Load regular comparison layers for both periods
-      for (const layerType of activeLayerTypes) {
-        try {
-          const result1 = await LAYER_CONFIG[layerType].service(params1);
-          setPeriod1Data(layerType, result1?.data || result1);
-          const result2 = await LAYER_CONFIG[layerType].service(params2);
-          setPeriod2Data(layerType, result2?.data || result2);
-        } catch (err) {
-          console.error(`[${layerType}]`, err);
-          setPeriod1Data(layerType, { error: err.message });
-          setPeriod2Data(layerType, { error: err.message });
-        }
-      }
+      // Each period is independent. Fetch pairs in parallel so a failed layer
+      // does not hide its counterpart or the other selected layer types.
+      await Promise.all(
+        [...activeLayerTypes].map(async (layerType) => {
+          const service = LAYER_CONFIG[layerType].service;
+          const [first, second] = await Promise.allSettled([
+            service(params1),
+            service(params2),
+          ]);
+
+          if (first.status === "fulfilled") {
+            setPeriod1Data(layerType, first.value?.data || first.value);
+          } else {
+            console.error(`[${layerType}:left]`, first.reason);
+            setPeriod1Data(layerType, { error: first.reason?.message });
+          }
+
+          if (second.status === "fulfilled") {
+            setPeriod2Data(layerType, second.value?.data || second.value);
+          } else {
+            console.error(`[${layerType}:right]`, second.reason);
+            setPeriod2Data(layerType, { error: second.reason?.message });
+          }
+        }),
+      );
     } catch (err) {
       setError(err.message || LABELS.errorGeneric);
     } finally {
@@ -189,7 +212,7 @@ function ConfigPanel() {
     endDate1.getMonth() === endDate2.getMonth();
 
   return (
-    <div className="bg-card">
+    <Card className="gap-0 overflow-hidden py-0">
       {/* Header - always visible */}
       <Button
         type="button"
@@ -205,9 +228,9 @@ function ConfigPanel() {
           </span>
         </div>
         {open ? (
-          <ChevronUp size={16} className="text-foreground/60" />
+          <ChevronUp size={16} className="text-muted-foreground" />
         ) : (
-          <ChevronDown size={16} className="text-foreground/60" />
+          <ChevronDown size={16} className="text-muted-foreground" />
         )}
       </Button>
 
@@ -222,23 +245,25 @@ function ConfigPanel() {
         <div className="border-t border-border px-3 py-3 space-y-3">
           {/* Date Range */}
           <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-foreground/80 uppercase tracking-wide flex items-center gap-1.5">
+            <h4 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <Calendar size={13} />
               {LABELS.timeRangeCompare}
             </h4>
 
             {/* Period 1 */}
-            <div className="p-2.5 bg-blue-500/5 border border-blue-500/20 rounded-lg space-y-2">
-              <p className="text-xs font-semibold text-blue-500">
+            <div className="space-y-2 rounded-lg border border-info/25 bg-(--info-subtle) p-2.5">
+              <p className="text-xs font-semibold text-(--info-subtle-foreground)">
                 {LABELS.period1}
               </p>
               <div className="space-y-1.5">
                 <div>
-                  <label className="text-xs text-foreground/60 mb-1 block">
+                  <Label htmlFor="satellite-compare-start-1" className="mb-1 text-xs text-muted-foreground">
                     {LABELS.from}
-                  </label>
+                  </Label>
                   <Input
+                    id="satellite-compare-start-1"
                     type="date"
+                    variant="filled"
                     value={formatDateForInput(startDate1)}
                     onChange={(e) =>
                       handlePeriodDateChange({
@@ -253,11 +278,13 @@ function ConfigPanel() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-foreground/60 mb-1 block">
+                  <Label htmlFor="satellite-compare-end-1" className="mb-1 text-xs text-muted-foreground">
                     {LABELS.to}
-                  </label>
+                  </Label>
                   <Input
+                    id="satellite-compare-end-1"
                     type="date"
+                    variant="filled"
                     value={formatDateForInput(endDate1)}
                     onChange={(e) =>
                       handlePeriodDateChange({
@@ -275,17 +302,36 @@ function ConfigPanel() {
             </div>
 
             {/* Period 2 */}
-            <div className="p-2.5 bg-orange-500/5 border border-orange-500/20 rounded-lg space-y-2">
-              <p className="text-xs font-semibold text-orange-500">
-                {LABELS.period2}
-              </p>
+            <div className="space-y-2 rounded-lg border border-warning/25 bg-(--warning-subtle) p-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <p className="shrink-0 text-xs font-semibold text-(--warning-subtle-foreground)">
+                  {LABELS.period2}
+                </p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={applySamePeriodLastYear}
+                      disabled={isLoading}
+                      className="h-auto max-w-[65%] whitespace-normal px-2 py-1 text-right text-[10px] leading-tight"
+                    >
+                      Đặt kỳ đối chiếu nhanh
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Đặt kỳ đối chiếu nhanh</TooltipContent>
+                </Tooltip>
+              </div>
               <div className="space-y-1.5">
                 <div>
-                  <label className="text-xs text-foreground/60 mb-1 block">
+                  <Label htmlFor="satellite-compare-start-2" className="mb-1 text-xs text-muted-foreground">
                     {LABELS.from}
-                  </label>
+                  </Label>
                   <Input
+                    id="satellite-compare-start-2"
                     type="date"
+                    variant="filled"
                     value={formatDateForInput(startDate2)}
                     onChange={(e) =>
                       handlePeriodDateChange({
@@ -300,11 +346,13 @@ function ConfigPanel() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-foreground/60 mb-1 block">
+                  <Label htmlFor="satellite-compare-end-2" className="mb-1 text-xs text-muted-foreground">
                     {LABELS.to}
-                  </label>
+                  </Label>
                   <Input
+                    id="satellite-compare-end-2"
                     type="date"
+                    variant="filled"
                     value={formatDateForInput(endDate2)}
                     onChange={(e) =>
                       handlePeriodDateChange({
@@ -321,57 +369,75 @@ function ConfigPanel() {
               </div>
             </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              size="xs"
-              onClick={applySamePeriodLastYear}
-              disabled={isLoading}
-              className="w-full"
-            >
-              Đặt kỳ đối chiếu cùng thời gian năm trước
-            </Button>
-
             <aside
               role="note"
               className={`rounded-lg border p-2.5 text-[11px] leading-relaxed ${
                 sameSeason && period1Days === period2Days
-                  ? "border-success/30 bg-success/10 text-success-foreground"
-                  : "border-warning/30 bg-warning/10 text-warning-foreground"
+                  ? "border-success/30 bg-(--success-subtle) text-(--success-subtle-foreground)"
+                  : "border-warning/30 bg-(--warning-subtle) text-(--warning-subtle-foreground)"
               }`}
             >
-              <p className="flex items-center gap-1.5 font-semibold">
+              <Button
+                type="button"
+                variant="ghost-transparent"
+                size="sm"
+                onClick={() => setComparisonNoteOpen((value) => !value)}
+                className="h-auto w-full justify-start gap-1.5 whitespace-normal p-0 text-left text-[11px] text-current"
+                aria-expanded={comparisonNoteOpen}
+                aria-controls="comparison-period-note"
+              >
                 <Info className="h-3.5 w-3.5 shrink-0" />
-                {sameSeason && period1Days === period2Days
-                  ? "Hai khoảng thời gian tương đồng"
-                  : "Nên chọn cùng mùa và cùng số ngày"}
-              </p>
-              <p className="mt-1">
-                So sánh cùng thời gian giữa hai năm giúp giảm chênh lệch tự
-                nhiên do mùa. Mây và số lượng ảnh khác nhau vẫn có thể làm màu
-                sắc hoặc chỉ số thay đổi.
-              </p>
+                <span className="flex-1">
+                  {sameSeason && period1Days === period2Days
+                    ? "Hai khoảng thời gian tương đồng"
+                    : "Nên chọn cùng mùa và cùng số ngày"}
+                </span>
+                <ChevronDown
+                  className={`h-3.5 w-3.5 shrink-0 transition-transform duration-200 ${
+                    comparisonNoteOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </Button>
+              <div
+                id="comparison-period-note"
+                aria-hidden={!comparisonNoteOpen}
+                className={`grid transition-all duration-200 ${
+                  comparisonNoteOpen
+                    ? "grid-rows-[1fr] opacity-100"
+                    : "grid-rows-[0fr] opacity-0"
+                }`}
+              >
+                <div className="overflow-hidden">
+                  <p className="mt-1 text-current">
+                    So sánh cùng thời gian giữa hai năm giúp giảm chênh lệch tự
+                    nhiên do mùa. Mây và số lượng ảnh khác nhau vẫn có thể làm
+                    màu sắc hoặc chỉ số thay đổi.
+                  </p>
+                </div>
+              </div>
             </aside>
           </div>
 
           {/* Layer Types */}
           <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-foreground/80 uppercase tracking-wide">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {LABELS.layerTypes}
             </h4>
             <div className="space-y-2">
               {COMPARE_LAYER_ENTRIES.map(([layerId, config]) => (
                 <Tooltip key={layerId} delayDuration={200}>
                   <TooltipTrigger asChild>
-                    <label
-                      className={`flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors ${
+                    <Label
+                      htmlFor={`satellite-compare-layer-${layerId}`}
+                      className={`flex items-center gap-2 rounded border p-2 transition-colors ${
                         isLoading
-                          ? "opacity-50 cursor-not-allowed bg-surface-muted"
-                          : "hover:bg-surface-muted border-border/50"
+                          ? "cursor-not-allowed bg-muted/50 opacity-50"
+                          : "cursor-pointer border-border/50 hover:bg-muted/50"
                       }`}
                     >
                       <div className="flex items-center gap-2 flex-1">
                         <Checkbox
+                          id={`satellite-compare-layer-${layerId}`}
                           checked={activeLayerTypes.has(layerId)}
                           onCheckedChange={() => toggleLayerType(layerId)}
                           disabled={isLoading}
@@ -384,12 +450,12 @@ function ConfigPanel() {
                           <p className="text-xs font-medium text-foreground">
                             {config.label}
                           </p>
-                          <p className="text-xs text-foreground/50 truncate">
+                          <p className="truncate text-xs text-muted-foreground">
                             {config.description}
                           </p>
                         </div>
                       </div>
-                    </label>
+                    </Label>
                   </TooltipTrigger>
                   {isLoading && (
                     <TooltipContent className="text-xs">
@@ -403,26 +469,43 @@ function ConfigPanel() {
 
           {/* Settings */}
           <div className="space-y-2">
-            <h4 className="text-xs font-semibold text-foreground/80 uppercase tracking-wide">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {LABELS.settings}
             </h4>
-            <div className="flex items-center justify-between gap-2">
-              <label className="text-xs text-foreground/60 shrink-0">
+            <div className="space-y-1.5">
+              <Label htmlFor="satellite-compare-collection" className="text-xs text-muted-foreground">
                 {LABELS.collection}
-              </label>
-              <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded">
-                {COLLECTION_OPTIONS.find((opt) => opt.value === collection)
-                  ?.label || collection}
-              </span>
+              </Label>
+              <Select
+                value={collection}
+                onValueChange={setCollection}
+                disabled={isLoading}
+              >
+                <SelectTrigger
+                  id="satellite-compare-collection"
+                  size="sm"
+                  variant="filled"
+                  className="w-full text-xs"
+                >
+                  <SelectValue placeholder="Chọn nguồn dữ liệu" />
+                </SelectTrigger>
+                <SelectContent position="popper" align="start">
+                  {COLLECTION_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-xs text-foreground/60">
+                <Label className="text-xs text-muted-foreground">
                   {LABELS.cloudCover}
-                </label>
-                <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded">
+                </Label>
+                <Badge variant="soft-primary" className="text-[10px]">
                   {cloudCover}%
-                </span>
+                </Badge>
               </div>
               <Slider
                 min={CLOUD_COVER_MIN}
@@ -442,19 +525,13 @@ function ConfigPanel() {
               variant="gradient-info"
               onClick={handleAnalyze}
               disabled={isLoading || activeLayerTypes.size === 0}
+              isLoading={isLoading}
               className="flex-1 gap-2 h-8"
             >
-              {isLoading ? (
-                <>
-                  <LoadingInline size="small" color="primary" />
-                  <span className="text-xs">{LABELS.loading}</span>
-                </>
-              ) : (
-                <>
-                  <Play size={14} />
-                  <span className="text-xs">{LABELS.loadImage}</span>
-                </>
-              )}
+              {!isLoading && <Play size={14} />}
+              <span className="text-xs">
+                {isLoading ? LABELS.loading : LABELS.loadImage}
+              </span>
             </Button>
             <Button
               onClick={() => {
@@ -471,7 +548,7 @@ function ConfigPanel() {
           </div>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
 

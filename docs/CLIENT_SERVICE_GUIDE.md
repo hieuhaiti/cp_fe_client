@@ -96,20 +96,19 @@ import {
 
 | Hàm | Endpoint | Payload |
 | --- | --- | --- |
-| `getNotifications(params)` / `useGetNotificationsQuery(params)` | `GET /notifications` | Query: `page`, `limit`, `onlyUnread`, `lang` |
+| `getNotifications(params)` / `useGetNotificationsQuery(params)` | `GET /notifications/mine` | Query: `page`, `limit`, `unreadOnly` |
 | `getUnreadCount(lang)` / `useGetUnreadCountQuery()` | `GET /notifications/unread-count` | — |
 | `markAllNotificationsAsRead(lang)` | `PATCH /notifications/read-all` | — |
 | `markNotificationAsRead(id, lang)` | `PATCH /notifications/:id/read` | — |
 | `deleteNotification(id, lang)` | `DELETE /notifications/:id` | — |
-| `registerNotificationDevice(payload, lang)` | `POST /notifications/devices` | `{ token, platform, deviceInfo }` |
-| `unregisterNotificationDevice(token, lang)` | `DELETE /notifications/devices` | `{ token }` |
-| `sendNotification(payload, lang)` | `POST /notifications/send` | `target`, `userId`/`roleCode`, `channel`, `type`, `title`, `body`, `data` |
+| `registerNotificationDevice(payload, lang)` | `PUT /devices/push-token` | `{ token, platform, deviceInfo }` |
+| `unregisterNotificationDevice(token, lang)` | `DELETE /devices/push-token` | `{ token }` |
 
-`target` hợp lệ theo collection: `user`, `role`, hoặc `all`.
+Các route inbox đều lấy user từ access token; client không gửi `user_id`.
 
 ### WebSocket thông báo — `realtimeNotificationService.js`
 
-`useNotificationWebSocket` là hook dùng chung cho thông báo hệ thống và remote sensing. Hook tự lấy role từ `useAuthStore` để subscribe `role_{roleCode}`; màn hình có thể truyền thêm `channels`.
+`useNotificationWebSocket` là hook dùng chung cho thông báo hệ thống và remote sensing. Notification cá nhân được server gửi trực tiếp theo user trong access token. Hook tự lấy role từ `useAuthStore` để subscribe `role:{roleCode}`; màn hình có thể truyền thêm các channel được server cho phép.
 
 ```jsx
 import { useCallback } from "react";

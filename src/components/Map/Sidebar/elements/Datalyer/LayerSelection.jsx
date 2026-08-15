@@ -1,12 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  ChevronDown,
-  ChevronRight,
-  Eye,
-  EyeOff,
-  Layers,
-  Map as MapIcon,
-} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronRight, Eye, EyeOff, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -18,150 +11,152 @@ import LoadingInline from "@/components/common/LoadingInline";
 import { useDataLayerStore } from "@/stores/Map/Sidebar/useDataLayerStore";
 import { useMapStore } from "@/stores/Map/useMapStore";
 import {
-  useGetMapBasemapsQuery,
+  extractWebMapItems,
+  normalizeWebMapLayer,
   useGetMapLayersQuery,
 } from "@/services/mapLayersService";
 import { buildOgcSourceId } from "@/helper/Map/MapHelper";
 
-const UNCATEGORIZED_KEY = "__uncategorized__";
-const UNCATEGORIZED_LABEL = "Khác";
-
-const CATEGORY_LABELS_VI = {
-  land_cover: "Lớp phủ mặt đất",
-  remote_sensing: "Ảnh viễn thám",
-  flood: "Ngập lụt và thủy văn",
-  flood_event: "Hiện trạng ngập theo sự kiện",
-  flood_risk: "Chỉ số nguy cơ ngập",
-  flood_impact: "Tác động ngập lụt",
-  flood_trend: "Xu thế ngập lụt",
-  forest_district: "Phân loại rừng theo huyện",
-  administrative: "Ranh giới hành chính",
-  hydrology: "Thủy văn",
-  transportation: "Giao thông",
-  infrastructure: "Hạ tầng",
-  environment: "Môi trường",
-  agriculture: "Nông nghiệp",
-  forestry: "Lâm nghiệp",
-};
-
-const toCategoryLabel = (key) => {
-  if (CATEGORY_LABELS_VI[key]) return CATEGORY_LABELS_VI[key];
-  return String(key)
-    .replace(/[_-]+/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-};
-
 function LayerItem({ layer, onToggle }) {
-  const sourceId = buildOgcSourceId(layer);
-  const prevEnabledRef = useRef(layer.enabled);
-
-  useEffect(() => {
-    if (layer.enabled) {
-      useMapStore.getState().setOgcLayerData(sourceId, layer);
-    }
-  }, [layer, layer.enabled, sourceId]);
-
-  useEffect(() => {
-    if (prevEnabledRef.current && !layer.enabled) {
-      useMapStore.getState().removeOgcLayerData(sourceId);
-    }
-
-    prevEnabledRef.current = layer.enabled;
-  }, [layer.enabled, sourceId, layer.code]);
-
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <label
-          htmlFor={`ogc-layer-${layer.id}`}
-          className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 shadow-sm transition-all cursor-pointer hover:bg-accent/10 hover:shadow-md"
+        <div
+          onClick={() => onToggle(layer.id)}
+          className="flex cursor-pointer items-center gap-3 rounded-lg border border-border bg-card p-3 shadow-sm transition-all hover:bg-accent/10 hover:shadow-md"
         >
           <Checkbox
             id={`ogc-layer-${layer.id}`}
             checked={layer.enabled}
             onCheckedChange={() => onToggle(layer.id)}
-            className="data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+            onClick={(event) => event.stopPropagation()}
+            aria-label={`${layer.enabled ? "Tắt" : "Bật"} lớp ${layer.name}`}
+            className="data-[state=checked]:border-primary data-[state=checked]:bg-primary"
           />
-
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium text-foreground">
               {layer.name}
             </span>
           </span>
-        </label>
+        </div>
       </TooltipTrigger>
       <TooltipContent side="right" className="max-w-xs">
-        <div className="space-y-1">
-          <div className="font-semibold text-sm">{layer.name}</div>
-        </div>
+        <div className="font-semibold text-sm">{layer.name}</div>
       </TooltipContent>
     </Tooltip>
   );
 }
 
+function formatCategoryName(category) {
+  if (!category) return "Khác";
+  return String(category)
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
 function CollapsibleSection({
   title,
-  icon: Icon,
+  activeCount,
   count,
-  defaultOpen = false,
-  actions,
   children,
+  onEnableAll,
+  onDisableAll,
+  defaultOpen = false,
 }) {
   const [open, setOpen] = useState(defaultOpen);
-  const ChevronIcon = open ? ChevronDown : ChevronRight;
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
+    <section className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm">
+      <div className="flex items-center">
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="flex items-center gap-2 text-lg font-semibold text-foreground hover:text-primary transition-colors"
+          onClick={() => setOpen((value) => !value)}
+          className="group flex min-w-0 flex-1 items-center gap-2.5 px-3 py-3 text-left text-sm font-semibold text-foreground transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
           aria-expanded={open}
         >
-          <ChevronIcon className="h-4 w-4" />
-          {Icon ? <Icon className="h-5 w-5" /> : null}
-          <span>{title}</span>
-          {typeof count === "number" ? (
-            <span className="text-xs font-normal text-muted-foreground">
-              ({count})
-            </span>
-          ) : null}
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary/15">
+            <ChevronRight
+              className={`h-4 w-4 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
+            />
+          </span>
+          <span className="min-w-0 flex-1 truncate">{title}</span>
+          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+            {activeCount}/{count}
+          </span>
         </button>
-        {actions ? <div className="flex gap-1">{actions}</div> : null}
+
+        <div className="flex shrink-0 items-center gap-1 pr-2">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onEnableAll();
+                  }}
+                  disabled={activeCount === count}
+                  aria-label={`Bật tất cả lớp trong nhóm ${title}`}
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Bật tất cả lớp trong nhóm</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="inline-flex">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDisableAll();
+                  }}
+                  disabled={activeCount === 0}
+                  aria-label={`Tắt tất cả lớp trong nhóm ${title}`}
+                >
+                  <EyeOff className="h-4 w-4" />
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Tắt tất cả lớp trong nhóm</TooltipContent>
+          </Tooltip>
+        </div>
       </div>
-      {open ? children : null}
-    </div>
+
+      {open ? (
+        <div className="border-t border-border/60 bg-muted/15 p-2">
+          {children}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
-function CategoryGroup({ category, layers, onToggle, defaultOpen = false }) {
-  const [open, setOpen] = useState(defaultOpen);
-  const ChevronIcon = open ? ChevronDown : ChevronRight;
-  const enabledCount = layers.filter((l) => l.enabled).length;
+function CategoryGroup({ name, layers, onToggle, onSetEnabled }) {
+  const activeCount = layers.filter((layer) => layer.enabled).length;
+  const layerIds = layers.map((layer) => layer.id);
 
   return (
-    <div className="rounded-lg border border-border bg-card/40">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-sm font-medium text-foreground hover:bg-accent/10 rounded-lg"
-        aria-expanded={open}
-      >
-        <ChevronIcon className="h-4 w-4" />
-        <span className="flex-1 text-left truncate">{category}</span>
-        <span className="text-xs text-muted-foreground">
-          {enabledCount}/{layers.length}
-        </span>
-      </button>
-      {open ? (
-        <div className="flex flex-col gap-2 p-2 pt-0">
-          {layers.map((layer) => (
-            <LayerItem key={layer.id} layer={layer} onToggle={onToggle} />
-          ))}
-        </div>
-      ) : null}
-    </div>
+    <CollapsibleSection
+      title={name}
+      count={layers.length}
+      activeCount={activeCount}
+      onEnableAll={() => onSetEnabled(layerIds, true)}
+      onDisableAll={() => onSetEnabled(layerIds, false)}
+    >
+      <div className="flex flex-col gap-2">
+        {layers.map((layer) => (
+          <LayerItem key={layer.id} layer={layer} onToggle={onToggle} />
+        ))}
+      </div>
+    </CollapsibleSection>
   );
 }
 
@@ -170,157 +165,74 @@ export function LayerSelection() {
     ogcLayers,
     setOgcLayerState,
     toggleOgcLayerEnabled,
+    setOgcLayersEnabled,
     resetOgcLayers,
     enableAllOgcLayers,
   } = useDataLayerStore();
 
-  const overlayQuery = useGetMapLayersQuery(
-    { category: "overlay" },
-    { staleTime: 2 * 60 * 1000 },
+  const layersQuery = useGetMapLayersQuery({}, { staleTime: 2 * 60 * 1000 });
+  const mapLayers = useMemo(
+    () =>
+      extractWebMapItems(layersQuery.data)
+        .map(normalizeWebMapLayer)
+        .filter((layer) => layer.geoserver_layer),
+    [layersQuery.data],
   );
-
-  const basemapQuery = useGetMapBasemapsQuery(
-    { staleTime: 2 * 60 * 1000 },
-  );
-
-  const isLoading = overlayQuery.isLoading || basemapQuery.isLoading;
-  const isError = overlayQuery.isError || basemapQuery.isError;
-
-  const mapLayers = useMemo(() => {
-    const extract = (payload) =>
-      (Array.isArray(payload) && payload) ||
-      payload?.data?.items ||
-      payload?.data?.layers ||
-      payload?.items ||
-      [];
-
-    const overlays = extract(overlayQuery.data).map((l) => ({
-      ...l,
-      layer_kind: "overlay",
-    }));
-    // /web-map/basemaps returns tile catalogs, not OGC layers. Keep it out of
-    // this WMS/WFS store; the basemap endpoint is still queried separately.
-    return overlays.filter((layer) => layer?.geoserver_layer);
-  }, [overlayQuery.data]);
 
   useEffect(() => {
     setOgcLayerState(mapLayers);
   }, [mapLayers, setOgcLayerState]);
 
   useEffect(() => {
-    const enabledSourceIds = new Set(
-      ogcLayers.filter((layer) => layer.enabled).map(buildOgcSourceId),
+    const ogcLayersData = Object.fromEntries(
+      ogcLayers
+        .filter((layer) => layer.enabled)
+        .map((layer) => [buildOgcSourceId(layer), layer]),
     );
-    const { ogcLayersData, removeOgcLayerData } = useMapStore.getState();
 
-    Object.keys(ogcLayersData).forEach((sourceId) => {
-      if (!enabledSourceIds.has(sourceId)) {
-        removeOgcLayerData(sourceId);
-      }
-    });
+    useMapStore.setState({ ogcLayersData });
   }, [ogcLayers]);
 
   const handleToggleLayer = useCallback(
-    (layerId) => {
-      toggleOgcLayerEnabled(layerId);
-    },
+    (layerId) => toggleOgcLayerEnabled(layerId),
     [toggleOgcLayerEnabled],
   );
 
-  const basemapLayers = useMemo(
-    () => ogcLayers.filter((l) => l.layer_kind === "basemap"),
-    [ogcLayers],
+  const handleSetGroupEnabled = useCallback(
+    (layerIds, enabled) => setOgcLayersEnabled(layerIds, enabled),
+    [setOgcLayersEnabled],
   );
-
-  const overlayLayers = useMemo(
-    () => ogcLayers.filter((l) => l.layer_kind !== "basemap"),
-    [ogcLayers],
-  );
-
-  const overlayCategories = useMemo(() => {
-    const groups = new Map();
-    overlayLayers.forEach((layer) => {
-      const key = layer.category || UNCATEGORIZED_KEY;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(layer);
-    });
-    return Array.from(groups.entries()).map(([key, layers]) => ({
-      key,
-      label:
-        key === UNCATEGORIZED_KEY ? UNCATEGORIZED_LABEL : toCategoryLabel(key),
-      layers,
-    }));
-  }, [overlayLayers]);
-
-  const handleEnableAllOverlays = useCallback(() => {
-    const overlayIds = overlayLayers.map((l) => l.id);
-    overlayIds.forEach((id) => toggleOgcLayerEnabled(id, true));
-  }, [overlayLayers, toggleOgcLayerEnabled]);
-
-  const handleDisableAllOverlays = useCallback(() => {
-    overlayLayers.forEach((l) => {
-      if (l.enabled) {
-        useMapStore.getState().removeOgcLayerData(buildOgcSourceId(l));
-      }
-      toggleOgcLayerEnabled(l.id, false);
-    });
-  }, [overlayLayers, toggleOgcLayerEnabled]);
-
-  const handleEnableAllBasemaps = useCallback(() => {
-    basemapLayers.forEach((l) => toggleOgcLayerEnabled(l.id, true));
-  }, [basemapLayers, toggleOgcLayerEnabled]);
-
-  const handleDisableAllBasemaps = useCallback(() => {
-    basemapLayers.forEach((l) => {
-      if (l.enabled) {
-        useMapStore.getState().removeOgcLayerData(buildOgcSourceId(l));
-      }
-      toggleOgcLayerEnabled(l.id, false);
-    });
-  }, [basemapLayers, toggleOgcLayerEnabled]);
-
-  // Preserve top-level "enable all / disable all" buttons for backward compat
-  const handleDisableAll = useCallback(() => {
-    useMapStore.getState().clearAllOgcLayersData();
-    resetOgcLayers();
-  }, [resetOgcLayers]);
 
   const handleEnableAll = useCallback(() => {
     enableAllOgcLayers();
   }, [enableAllOgcLayers]);
 
-  const bulkActions = (
-    <>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="soft-primary"
-            size="icon-sm"
-            onClick={handleEnableAll}
-            aria-label="Bật tất cả lớp dữ liệu"
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Bật tất cả</TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={handleDisableAll}
-            aria-label="Tắt tất cả lớp dữ liệu"
-          >
-            <EyeOff className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Tắt tất cả</TooltipContent>
-      </Tooltip>
-    </>
-  );
+  const handleDisableAll = useCallback(() => {
+    useMapStore.getState().clearAllOgcLayersData();
+    resetOgcLayers();
+  }, [resetOgcLayers]);
 
-  if (isLoading) {
+  const layersByCategory = useMemo(() => {
+    const groups = new Map();
+
+    ogcLayers.forEach((layer) => {
+      const key = layer.category || "uncategorized";
+      const group = groups.get(key) || {
+        key,
+        name:
+          layer.category_name && layer.category_name !== layer.category
+            ? layer.category_name
+            : formatCategoryName(layer.category),
+        layers: [],
+      };
+      group.layers.push(layer);
+      groups.set(key, group);
+    });
+
+    return Array.from(groups.values());
+  }, [ogcLayers]);
+
+  if (layersQuery.isLoading) {
     return (
       <div className="space-y-2">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
@@ -334,7 +246,7 @@ export function LayerSelection() {
     );
   }
 
-  if (isError) {
+  if (layersQuery.isError) {
     return (
       <div className="space-y-2">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
@@ -348,7 +260,7 @@ export function LayerSelection() {
     );
   }
 
-  if (ogcLayers.length === 0) {
+  if (!ogcLayers.length) {
     return (
       <div className="space-y-2">
         <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
@@ -369,108 +281,50 @@ export function LayerSelection() {
           <Layers className="h-5 w-5" />
           Lớp dữ liệu
         </h2>
-        <div className="flex gap-1">{bulkActions}</div>
+        <div className="flex gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="soft-primary"
+                size="icon-sm"
+                onClick={handleEnableAll}
+                aria-label="Bật tất cả lớp dữ liệu"
+              >
+                <Eye className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Bật tất cả</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                onClick={handleDisableAll}
+                aria-label="Tắt tất cả lớp dữ liệu"
+              >
+                <EyeOff className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Tắt tất cả</TooltipContent>
+          </Tooltip>
+        </div>
       </div>
 
-      {basemapLayers.length > 0 ? (
-        <CollapsibleSection
-          title="Lớp nền"
-          icon={MapIcon}
-          count={basemapLayers.length}
-          defaultOpen
-          actions={
-            <>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="soft-primary"
-                    size="icon-sm"
-                    onClick={handleEnableAllBasemaps}
-                    aria-label="Bật tất cả lớp nền"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Bật tất cả lớp nền</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon-sm"
-                    onClick={handleDisableAllBasemaps}
-                    aria-label="Tắt tất cả lớp nền"
-                  >
-                    <EyeOff className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Tắt tất cả lớp nền</TooltipContent>
-              </Tooltip>
-            </>
-          }
-        >
-          <div className="flex flex-col gap-2">
-            {basemapLayers.map((layer) => (
-              <LayerItem
-                key={layer.id}
-                layer={layer}
-                onToggle={handleToggleLayer}
-              />
-            ))}
-          </div>
-        </CollapsibleSection>
-      ) : null}
-
-      {overlayLayers.length > 0 ? (
-        <CollapsibleSection
-          title="Lớp phủ"
-          icon={Layers}
-          count={overlayLayers.length}
-          defaultOpen={false}
-          actions={
-            <>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="soft-primary"
-                    size="icon-sm"
-                    onClick={handleEnableAllOverlays}
-                    aria-label="Bật tất cả lớp phủ"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Bật tất cả lớp phủ</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon-sm"
-                    onClick={handleDisableAllOverlays}
-                    aria-label="Tắt tất cả lớp phủ"
-                  >
-                    <EyeOff className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Tắt tất cả lớp phủ</TooltipContent>
-              </Tooltip>
-            </>
-          }
-        >
-          <div className="flex flex-col gap-2">
-            {overlayCategories.map((group) => (
-              <CategoryGroup
-                key={group.key}
-                category={group.label}
-                layers={group.layers}
-                onToggle={handleToggleLayer}
-                defaultOpen={false}
-              />
-            ))}
-          </div>
-        </CollapsibleSection>
-      ) : null}
+      <div
+        className="max-h-[55vh] space-y-4 overflow-y-auto overscroll-contain pr-1 [scrollbar-gutter:stable]"
+        aria-label="Danh sách nhóm lớp dữ liệu"
+      >
+        {layersByCategory.map((group) => (
+          <CategoryGroup
+            key={group.key}
+            name={group.name}
+            layers={group.layers}
+            onToggle={handleToggleLayer}
+            onSetEnabled={handleSetGroupEnabled}
+          />
+        ))}
+      </div>
     </div>
   );
 }

@@ -16,8 +16,12 @@ export const PDF_MAP_THEME_LABELS = {
 export function normalizePdfMap(item = {}) {
   return {
     ...item,
+    scale: item.scale ?? item.scale_label,
+    year: item.year ?? item.map_year,
+    region: item.region ?? item.preparing_agency,
     fileUrl: item.fileUrl ?? item.file_url,
-    fileName: item.fileName ?? item.file_name,
+    fileName: item.fileName ?? item.file_name ?? item.original_name,
+    fileSize: item.fileSize ?? item.file_size ?? item.size_bytes,
     thumbnailUrl: item.thumbnailUrl ?? item.thumbnail_url,
     isPublic: item.isPublic ?? item.is_public,
     createdAt: item.createdAt ?? item.created_at,
