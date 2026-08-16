@@ -9,7 +9,7 @@ const ADMIN_PDF_MAPS_PATH = "/admin/cms/pdf-maps";
 export const PDF_MAP_THEME_LABELS = {
   lop_phu_nhiet: "Lớp phủ nhiệt",
   ngap_lut: "Ngập lụt và thủy văn",
-  lop_phu_rung: "Lớp phủ rừng",
+  lop_phu_rung: "Lớp phủ đối tượng",
   khac: "Khác",
 };
 

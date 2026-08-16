@@ -212,11 +212,14 @@ export function LayerSelection() {
     resetOgcLayers();
   }, [resetOgcLayers]);
 
+  const BLOCKED_CATEGORIES = ["flood", "forest"];
+
   const layersByCategory = useMemo(() => {
     const groups = new Map();
 
     ogcLayers.forEach((layer) => {
       const key = layer.category || "uncategorized";
+      if (BLOCKED_CATEGORIES.includes(key)) return;
       const group = groups.get(key) || {
         key,
         name:

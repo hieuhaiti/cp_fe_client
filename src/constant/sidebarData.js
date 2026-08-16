@@ -36,7 +36,7 @@ export const trackMapping = [
     id: "forestClassification",
     icon: TreePine,
     label: "Phân loại đối tượng",
-    description: "Xem kết quả phân loại lớp phủ rừng theo kỳ công bố",
+    description: "Xem kết quả phân loại lớp phủ đối tượng theo kỳ công bố",
     component: ForestClassification,
     color: "text-success",
   },
