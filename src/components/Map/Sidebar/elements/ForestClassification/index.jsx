@@ -78,9 +78,15 @@ const haFmt = (value) =>
   value == null || Number.isNaN(Number(value))
     ? "—"
     : `${Number(value).toLocaleString("vi-VN", { maximumFractionDigits: 2 })} ha`;
+const getSeasonName = (month) => {
+  if (month <= 3) return "Xuân";
+  if (month <= 6) return "Hạ";
+  if (month <= 9) return "Thu";
+  return "Đông";
+};
 const periodLabel = (item) =>
   item?.year != null && item?.month != null
-    ? `${String(item.month).padStart(2, "0")}/${item.year}`
+    ? `${getSeasonName(item.month)} ${item.year}`
     : "—";
 
 function ensureForestLayer(map, { id, tileUrl, visible, opacity }) {
@@ -93,7 +99,7 @@ function ensureForestLayer(map, { id, tileUrl, visible, opacity }) {
       type: "raster",
       tiles: [tileUrl],
       tileSize: 256,
-      attribution: "Dữ liệu phân loại lớp phủ rừng",
+      attribution: "Dữ liệu phân loại đối tượng",
     });
   } else if (typeof source.setTiles === "function") {
     source.setTiles([tileUrl]);
@@ -162,7 +168,7 @@ export function ForestClassification() {
         latestSnapshot?.id != null ? String(latestSnapshot.id) : "",
       );
     } catch (err) {
-      setError(err?.message || "Không tải được kết quả phân loại rừng.");
+      setError(err?.message || "Không tải được kết quả phân loại đối tượng.");
     } finally {
       setLoading(false);
     }
@@ -229,7 +235,7 @@ export function ForestClassification() {
     }
 
     setMapLegend(mapLegendId, {
-      title: `Phân loại rừng · ${periodLabel(snapshot)}`,
+      title: `Phân loại đối tượng · ${periodLabel(snapshot)}`,
       subtitle: "TP Cẩm Phả",
       items: legend.map((entry) => ({
         color: entry.color,
@@ -252,7 +258,7 @@ export function ForestClassification() {
               <TreePine className="size-5" />
             </span>
             <div className="min-w-0">
-              <CardTitle className="text-sm">Phân loại rừng</CardTitle>
+              <CardTitle className="text-sm">Phân loại đối tượng</CardTitle>
               <CardDescription className="mt-1 whitespace-normal break-words text-[11px] text-(--gradient-surface-panel-muted)">
                 TP Cẩm Phả · Phân tích ảnh vệ tinh Sentinel-2
               </CardDescription>
@@ -268,7 +274,7 @@ export function ForestClassification() {
                   className="text-(--gradient-surface-panel-foreground) hover:bg-(--gradient-surface-panel-wash-strong) hover:text-(--gradient-surface-panel-foreground)"
                   onClick={fetchLatest}
                   disabled={loading}
-                  aria-label="Tải lại dữ liệu phân loại rừng"
+                  aria-label="Tải lại dữ liệu phân loại đối tượng"
                 >
                   {loading ? (
                     <Loader2 className="size-4 animate-spin" />
@@ -341,7 +347,7 @@ export function ForestClassification() {
                   variant="filled"
                   isLoading={loading}
                   className="w-full text-xs"
-                  aria-label="Chọn kỳ dữ liệu phân loại rừng"
+                  aria-label="Chọn kỳ dữ liệu phân loại đối tượng"
                 >
                   <SelectValue placeholder="Chọn kỳ đã công bố" />
                 </SelectTrigger>
@@ -406,7 +412,7 @@ export function ForestClassification() {
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <Label className="block truncate text-xs">
-                      Phân loại lớp phủ rừng
+                      Phân loại đối tượng
                     </Label>
                     <p
                       className="mt-0.5 truncate text-[10px] text-muted-foreground"
@@ -426,8 +432,8 @@ export function ForestClassification() {
                           disabled={!tileUrl}
                           aria-label={
                             visible
-                              ? "Ẩn lớp phân loại rừng"
-                              : "Hiện lớp phân loại rừng"
+                              ? "Ẩn lớp phân loại đối tượng"
+                              : "Hiện lớp phân loại đối tượng"
                           }
                           aria-pressed={visible}
                         >
@@ -462,7 +468,7 @@ export function ForestClassification() {
                     step={0.05}
                     onValueChange={([value]) => setOpacity(value)}
                     disabled={!tileUrl || !visible}
-                    aria-label="Độ hiển thị lớp phân loại rừng"
+                    aria-label="Độ hiển thị lớp phân loại đối tượng"
                   />
                 </div>
               </div>
@@ -482,7 +488,7 @@ export function ForestClassification() {
 
 function ForestClassificationSkeleton() {
   return (
-    <div className="space-y-3" aria-label="Đang tải dữ liệu phân loại rừng">
+    <div className="space-y-3" aria-label="Đang tải dữ liệu phân loại đối tượng">
       <Skeleton className="h-8 w-full" />
       <div className="grid grid-cols-2 gap-2">
         {Array.from({ length: 4 }, (_, index) => (

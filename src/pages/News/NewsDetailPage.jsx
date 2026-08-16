@@ -473,7 +473,7 @@ export default function NewsDetailPage() {
                             {comment.userAvatar ? (
                               <img
                                 src={praseLink(comment.userAvatar)}
-                                alt={comment.userName || "Người bình luận"}
+                                alt={comment.full_name || comment.userName || "Người bình luận"}
                                 className="h-10 w-10 shrink-0 rounded-full object-cover"
                                 loading="lazy"
                                 onError={(event) => {
@@ -482,16 +482,16 @@ export default function NewsDetailPage() {
                               />
                             ) : (
                               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                                {getCommentInitials(comment.userName)}
+                                {getCommentInitials(comment.full_name || comment.userName)}
                               </div>
                             )}
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                 <h3 className="text-sm font-semibold text-foreground">
-                                  {comment.userName || "Người dùng"}
+                                  {comment.full_name || comment.userName || "Người dùng"}
                                 </h3>
                                 <span className="text-xs text-muted-foreground">
-                                  {formatDate(comment.createdAt)}
+                                  {formatDate(comment.created_at || comment.createdAt)}
                                 </span>
                               </div>
                               <p className="mt-2 whitespace-pre-line text-sm leading-6 text-foreground">

@@ -223,7 +223,10 @@ function formatDateShort(value) {
 
 function getAnalysisPeriods(module, run) {
   const metadata = runMetadata(run);
-  if (module === "event") {
+  // Also check the API-level `period` field added by listPublicRuns.
+  const apiPeriod = run?.period || {};
+
+  if (module === "event" || module === "rain") {
     const preStart = formatDateShort(metadata.preStart);
     const preEnd = formatDateShort(metadata.preEnd);
     const postStart = formatDateShort(metadata.postStart);
@@ -240,7 +243,94 @@ function getAnalysisPeriods(module, run) {
     }
     return periods;
   }
+
+  if (module === "hand") {
+    const levelM = metadata.levelM ?? apiPeriod.levelM;
+    if (levelM == null) return [];
+    return [{ label: "Mực nước kịch bản", value: `${levelM} m` }];
+  }
+
+  if (module === "trend") {
+    const baseline = metadata.baselinePeriod || apiPeriod.baseline;
+    const analysisPeriods =
+      metadata.analysisPeriods || apiPeriod.analysis || [];
+    const periods = [];
+    if (baseline?.start && baseline?.end) {
+      periods.push({
+        label: "Kỳ nền",
+        value: `${formatDateShort(baseline.start)} → ${formatDateShort(baseline.end)}`,
+      });
+    }
+    if (analysisPeriods.length > 0) {
+      const first = analysisPeriods[0];
+      const last = analysisPeriods[analysisPeriods.length - 1];
+      periods.push({
+        label: "Kỳ phân tích",
+        value: `${formatDateShort(first.start)} → ${formatDateShort(last.end)} (${analysisPeriods.length} kỳ)`,
+      });
+    }
+    return periods;
+  }
+
+  if (module === "impact") {
+    const src = metadata.impactSource ?? "M1";
+    const postStart = formatDateShort(metadata.postStart);
+    const postEnd = formatDateShort(metadata.postEnd);
+    const periods = [{ label: "Nguồn dữ liệu", value: src }];
+    if (postStart && postEnd) {
+      periods.push({
+        label: "Kỳ phân tích",
+        value: `${postStart} → ${postEnd}`,
+      });
+    }
+    return periods;
+  }
+
   return [];
+}
+
+/**
+ * Short label shown in the "Chọn kỳ xuất hiện" dropdown.
+ * Uses the analysis period / depth rather than the run's finished date.
+ */
+function runPeriodLabel(module, run) {
+  const metadata = runMetadata(run);
+  const apiPeriod = run?.period || {};
+
+  if (module === "event" || module === "rain") {
+    const start = metadata.postStart || apiPeriod.start;
+    const end = metadata.postEnd || apiPeriod.end;
+    if (!start) return null;
+    const s = formatDateShort(start);
+    const e = end ? formatDateShort(end) : null;
+    return e && e !== s ? `${s} – ${e}` : s;
+  }
+
+  if (module === "hand") {
+    const levelM = metadata.levelM ?? apiPeriod.levelM;
+    return levelM != null ? `Kịch bản ${levelM} m` : null;
+  }
+
+  if (module === "trend") {
+    const baseline = metadata.baselinePeriod || apiPeriod.baseline;
+    const analysisPeriods =
+      metadata.analysisPeriods || apiPeriod.analysis || [];
+    const baseYear = baseline?.start?.slice(0, 4);
+    const lastYear =
+      analysisPeriods.length > 0
+        ? analysisPeriods[analysisPeriods.length - 1].end?.slice(0, 4)
+        : null;
+    if (baseYear && lastYear) return `${baseYear} – ${lastYear}`;
+    return baseYear || lastYear || null;
+  }
+
+  if (module === "impact") {
+    const src = metadata.impactSource ?? apiPeriod.source ?? "M1";
+    const start = metadata.postStart || apiPeriod.start;
+    return start ? `${src} · ${formatDateShort(start)}` : src;
+  }
+
+  return null;
 }
 
 function getModuleMetrics(module, run) {
@@ -611,6 +701,7 @@ export function FloodHydrology() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const abortControllerRef = useRef(null);
+  const runsAbortRef = useRef(null);
   const layersRef = useRef([]);
 
   const load = useCallback(async () => {
@@ -621,7 +712,7 @@ export function FloodHydrology() {
     setError("");
 
     try {
-      const [overviewResponse, layerResponse, legendResponse, runResponse] =
+      const [overviewResponse, layerResponse, legendResponse] =
         await Promise.all([
           getFloodOverview({ signal: controller.signal }),
           getFloodLayers(
@@ -629,7 +720,6 @@ export function FloodHydrology() {
             { signal: controller.signal },
           ),
           getFloodLegends({ signal: controller.signal }),
-          getFloodRuns({ page: 1, limit: 50 }, { signal: controller.signal }),
         ]);
 
       if (controller.signal.aborted) return;
@@ -638,7 +728,6 @@ export function FloodHydrology() {
       setLegends(
         Array.isArray(unwrap(legendResponse)) ? unwrap(legendResponse) : [],
       );
-      setRuns(unwrap(runResponse)?.items || []);
     } catch (requestError) {
       if (!controller.signal.aborted && requestError?.name !== "AbortError") {
         setError(
@@ -654,6 +743,30 @@ export function FloodHydrology() {
     }
   }, []);
 
+  // Fetch runs filtered by the selected module. Re-fires every time the user
+  // picks a different module so the period dropdown only shows relevant runs.
+  const loadRuns = useCallback(async (module) => {
+    runsAbortRef.current?.abort();
+    const controller = new AbortController();
+    runsAbortRef.current = controller;
+    try {
+      const runResponse = await getFloodRuns(
+        { module, mode: "product", page: 1, limit: 50 },
+        { signal: controller.signal },
+      );
+      if (controller.signal.aborted) return;
+      setRuns(unwrap(runResponse)?.items || []);
+    } catch (err) {
+      if (!controller.signal.aborted && err?.name !== "AbortError") {
+        setRuns([]);
+      }
+    } finally {
+      if (runsAbortRef.current === controller) {
+        runsAbortRef.current = null;
+      }
+    }
+  }, []);
+
   useEffect(() => {
     load();
     return () => {
@@ -661,6 +774,14 @@ export function FloodHydrology() {
       abortControllerRef.current = null;
     };
   }, [load]);
+
+  useEffect(() => {
+    loadRuns(selectedModule);
+    return () => {
+      runsAbortRef.current?.abort();
+      runsAbortRef.current = null;
+    };
+  }, [loadRuns, selectedModule]);
 
   useEffect(() => {
     layersRef.current = layers;
@@ -674,6 +795,42 @@ export function FloodHydrology() {
     () => new Map(legends.map((legend) => [legend.code, legend])),
     [legends],
   );
+
+  // Sync visible flood artifact legends into the float legend panel.
+  useEffect(() => {
+    const { setMapLegend, removeMapLegend } = useMapStore.getState();
+    const registered = [];
+
+    visibleIds.forEach((artifactId) => {
+      const artifact = layers.find((layer) => layer.id === artifactId);
+      if (!artifact) return;
+      const legend = legendsByCode.get(artifact.code);
+      const entries = Array.isArray(legend?.entries) ? legend.entries : [];
+      if (!entries.length) return;
+
+      const legendId = `flood-artifact-${artifactId}`;
+      const label =
+        artifact.metadata?.label?.vi || legend?.label?.vi || artifact.code;
+      setMapLegend(legendId, {
+        title: label,
+        subtitle: "Ngập lụt và thủy văn",
+        items: entries.map((entry) => ({
+          color: entry.color || "#94a3b8",
+          label:
+            entry.label?.vi || entry.label?.en || String(entry.value ?? ""),
+          sublabel:
+            typeof entry.range === "string"
+              ? entry.range
+              : entry.range?.vi || entry.range?.en || null,
+        })),
+      });
+      registered.push(legendId);
+    });
+
+    return () => {
+      registered.forEach((id) => removeMapLegend(id));
+    };
+  }, [visibleIds, layers, legendsByCode]);
 
   const layerCounts = useMemo(() => {
     const result = Object.fromEntries(MODULES.map(({ code }) => [code, 0]));
@@ -756,6 +913,7 @@ export function FloodHydrology() {
       hideAllFloodLayers();
       setSelectedModule(value);
       setSelectedRunId("");
+      setRuns([]);
     },
     [hideAllFloodLayers],
   );
@@ -896,7 +1054,7 @@ export function FloodHydrology() {
                     <SelectContent position="popper" align="start">
                       {MODULES.map((module) => (
                         <SelectItem key={module.code} value={module.code}>
-                          {module.short} · {module.label}
+                          {module.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -937,7 +1095,8 @@ export function FloodHydrology() {
                     >
                       {availableRuns.map((run, index) => (
                         <SelectItem key={run.id} value={normalizeId(run.id)}>
-                          {formatDateTime(run.finishedAt || run.publishedAt)}
+                          {runPeriodLabel(selectedModule, run) ||
+                            formatDateTime(run.finishedAt || run.publishedAt)}
                           {index === 0 ? " · mới nhất" : ""}
                         </SelectItem>
                       ))}

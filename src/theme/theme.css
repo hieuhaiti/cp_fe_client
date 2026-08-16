@@ -1,62 +1,62 @@
 /* ==== THEME CONFIGURATION ==== */
-/* Editorial atlas palette for a public-facing user portal. */
+/* Professional WebGIS palette — Slate + Teal, inspired by Mapbox/ESRI. */
 :root {
   --radius: 0.5rem;
   --transition-fast: 160ms;
   --transition-normal: 240ms;
   --ease-in-out: cubic-bezier(0.4.2, 1);
   /* Base */
-  --background: #fffaf2;
-  --foreground: #20233f;
-  --foreground-hover: #f2edff;
-  --foreground-contrast: #14162a;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --foreground-hover: #f1f5f9;
+  --foreground-contrast: #020617;
   /* Brand */
-  --primary: #4b4694;
+  --primary: #0891b2;
   --primary-foreground: #ffffff;
-  --secondary: #b9573c;
+  --secondary: #1e3a5f;
   --secondary-foreground: #ffffff;
-  --accent: #fff0e7;
-  --accent-foreground: #7f3929;
-  --brand-forest: #4b4694;
-  --brand-lime: #dd8b50;
-  --brand-teal: #51758a;
-  --brand-sky: #5772b6;
-  --brand-indigo: #4b4694;
-  --brand-violet: #7d5ba6;
-  --brand-amber: #ca7a35;
-  --brand-rose: #b9573c;
+  --accent: #e0f9ff;
+  --accent-foreground: #164e63;
+  --brand-forest: #0e7490;
+  --brand-lime: #14b8a6;
+  --brand-teal: #0891b2;
+  --brand-sky: #0ea5e9;
+  --brand-indigo: #1e3a5f;
+  --brand-violet: #6366f1;
+  --brand-amber: #f59e0b;
+  --brand-rose: #e11d48;
   /* Semantic */
-  --success: #287467;
+  --success: #059669;
   --success-foreground: #ffffff;
-  --warning: #b85c26;
+  --warning: #d97706;
   --warning-foreground: #ffffff;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --info: #376f9f;
+  --info: #0891b2;
   --info-foreground: #ffffff;
   /* Semantic subtle states */
-  --primary-subtle: #eceaff;
-  --primary-subtle-foreground: #373276;
-  --success-subtle: #e1f4ef;
-  --success-subtle-foreground: #1f5d53;
-  --warning-subtle: #fff0df;
-  --warning-subtle-foreground: #894115;
+  --primary-subtle: #e0f2fe;
+  --primary-subtle-foreground: #0c4a6e;
+  --success-subtle: #d1fae5;
+  --success-subtle-foreground: #065f46;
+  --warning-subtle: #fef3c7;
+  --warning-subtle-foreground: #92400e;
   --destructive-subtle: #fee8e7;
   --destructive-subtle-foreground: #991b1b;
-  --info-subtle: #e5f0f7;
-  --info-subtle-foreground: #285778;
+  --info-subtle: #e0f2fe;
+  --info-subtle-foreground: #0c4a6e;
   /* Muted / Subtle */
-  --muted: #f2eee8;
-  --muted-foreground: #6d6b79;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
   /* Surfaces */
   --card: #ffffff;
-  --card-foreground: #20233f;
+  --card-foreground: #0f172a;
   --popover: #ffffff;
-  --popover-foreground: #20233f;
+  --popover-foreground: #0f172a;
   /* Borders / Inputs */
-  --border: #e3d9ce;
-  --input: #d8cabd;
-  --ring: #4b4694;
+  --border: #e2e8f0;
+  --input: #cbd5e1;
+  --ring: #0891b2;
   /* Gradient surfaces */
   --gradient-foreground: #ffffff;
   --gradient-primary: linear-gradient(
@@ -122,20 +122,20 @@
   --gradient-surface-page:
     radial-gradient(
       circle at top left,
-      color-mix(in srgb, var(--brand-lime) 24%, transparent),
+      color-mix(in srgb, var(--brand-teal) 14%, transparent),
       transparent 34rem
     ),
     radial-gradient(
       circle at right 18%,
-      color-mix(in srgb, var(--brand-sky) 18%, transparent),
+      color-mix(in srgb, var(--brand-sky) 12%, transparent),
       transparent 30rem
     ),
     radial-gradient(
       circle at 50% 96%,
-      color-mix(in srgb, var(--brand-amber) 13%, transparent),
+      color-mix(in srgb, var(--brand-forest) 8%, transparent),
       transparent 26rem
     ),
-    linear-gradient(135deg, #fffaf2 0%, #f6f0e8 55%, #f4f0fb 100%);
+    linear-gradient(135deg, #f8fafc 0%, #f0f9ff 55%, #e0f2fe 100%);
   --gradient-surface-panel: linear-gradient(
     145deg,
     var(--brand-forest) 0%,
@@ -145,22 +145,22 @@
   --gradient-surface-vibrant:
     radial-gradient(
       circle at 12% 16%,
-      color-mix(in srgb, var(--brand-lime) 28%, transparent),
+      color-mix(in srgb, var(--brand-teal) 18%, transparent),
       transparent 18rem
     ),
     radial-gradient(
       circle at 88% 18%,
-      color-mix(in srgb, var(--brand-sky) 24%, transparent),
+      color-mix(in srgb, var(--brand-sky) 14%, transparent),
       transparent 20rem
     ),
     radial-gradient(
       circle at 50% 100%,
-      color-mix(in srgb, var(--brand-amber) 18%, transparent),
+      color-mix(in srgb, var(--brand-forest) 10%, transparent),
       transparent 22rem
     ),
     linear-gradient(
       135deg,
-      color-mix(in srgb, var(--background) 92%, var(--brand-lime)) 0%,
+      color-mix(in srgb, var(--background) 92%, var(--brand-teal)) 0%,
       var(--background) 100%
     );
   --gradient-surface-map:
@@ -196,11 +196,11 @@
     var(--gradient-surface-panel-foreground) 15%,
     transparent
   );
-  --gradient-surface-card-shadow: 0 24px 70px rgb(75 70 148 / 0.16);
+  --gradient-surface-card-shadow: 0 24px 70px rgb(8 145 178 / 0.14);
   --gradient-surface-soft-border: rgb(255 255 255 / 0.58);
   --auth-grid-line: color-mix(in srgb, var(--primary) 8%, transparent);
   --auth-contour-line: color-mix(in srgb, var(--secondary) 10%, transparent);
-  --auth-orb-primary: color-mix(in srgb, var(--brand-lime) 28%, transparent);
+  --auth-orb-primary: color-mix(in srgb, var(--brand-teal) 28%, transparent);
   --auth-orb-secondary: color-mix(in srgb, var(--brand-sky) 22%, transparent);
   /* Chart Colors */
   --chart-1: #1f7a4d;
@@ -257,52 +257,52 @@
   --loading-spinner: var(--primary);
 }
 .dark {
-  --background: #0d1411;
-  --foreground: #eef7f1;
-  --foreground-hover: #18231d;
+  --background: #0f172a;
+  --foreground: #e2e8f0;
+  --foreground-hover: #1e293b;
   --foreground-contrast: #ffffff;
-  --card: #121c17;
-  --card-foreground: #eef7f1;
-  --popover: #121c17;
-  --popover-foreground: #eef7f1;
-  --primary: #65c88f;
-  --primary-foreground: #07130d;
-  --secondary: #5eead4;
-  --secondary-foreground: #06201d;
-  --accent: #1d3327;
-  --accent-foreground: #d9fbe7;
-  --brand-forest: #65c88f;
-  --brand-lime: #a3e635;
-  --brand-teal: #5eead4;
+  --card: #1e293b;
+  --card-foreground: #e2e8f0;
+  --popover: #1e293b;
+  --popover-foreground: #e2e8f0;
+  --primary: #22d3ee;
+  --primary-foreground: #083344;
+  --secondary: #38bdf8;
+  --secondary-foreground: #0c2942;
+  --accent: #0c1f2e;
+  --accent-foreground: #bae6fd;
+  --brand-forest: #22d3ee;
+  --brand-lime: #67e8f9;
+  --brand-teal: #22d3ee;
   --brand-sky: #38bdf8;
-  --brand-indigo: #818cf8;
-  --brand-violet: #c084fc;
+  --brand-indigo: #60a5fa;
+  --brand-violet: #a78bfa;
   --brand-amber: #fbbf24;
   --brand-rose: #fb7185;
-  --success: #65c88f;
+  --success: #34d399;
   --success-foreground: var(--foreground-contrast);
   --warning: #fbbf24;
   --warning-foreground: var(--foreground-contrast);
   --destructive: #f87171;
   --destructive-foreground: var(--foreground-contrast);
-  --info: #60a5fa;
+  --info: #38bdf8;
   --info-foreground: var(--foreground-contrast);
-  --primary-subtle: #173526;
-  --primary-subtle-foreground: #d9fbe7;
-  --success-subtle: #173526;
-  --success-subtle-foreground: #b7f7ce;
+  --primary-subtle: #0c2942;
+  --primary-subtle-foreground: #bae6fd;
+  --success-subtle: #064e3b;
+  --success-subtle-foreground: #a7f3d0;
   --warning-subtle: #3b2b12;
   --warning-subtle-foreground: #fde68a;
   --destructive-subtle: #3b1d20;
   --destructive-subtle-foreground: #fecaca;
-  --info-subtle: #172b4d;
-  --info-subtle-foreground: #bfdbfe;
-  --muted: #18231d;
-  --muted-foreground: #a9b8ae;
-  --border: #24362c;
-  --input: #2c4034;
-  --ring: #65c88f;
-  --gradient-foreground: #07130d;
+  --info-subtle: #0c2942;
+  --info-subtle-foreground: #bae6fd;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --border: #334155;
+  --input: #475569;
+  --ring: #22d3ee;
+  --gradient-foreground: #020617;
   --gradient-primary: linear-gradient(
     135deg,
     var(--brand-forest) 0%,
@@ -366,40 +366,40 @@
   --gradient-surface-page:
     radial-gradient(
       circle at top left,
-      color-mix(in srgb, var(--brand-lime) 18%, transparent),
+      color-mix(in srgb, var(--brand-teal) 12%, transparent),
       transparent 32rem
     ),
     radial-gradient(
       circle at right 18%,
-      color-mix(in srgb, var(--brand-sky) 14%, transparent),
+      color-mix(in srgb, var(--brand-sky) 10%, transparent),
       transparent 28rem
     ),
     radial-gradient(
       circle at 50% 96%,
-      color-mix(in srgb, var(--brand-amber) 10%, transparent),
+      color-mix(in srgb, var(--brand-indigo) 8%, transparent),
       transparent 24rem
     ),
-    linear-gradient(135deg, #08110d 0%, #0d1712 55%, #101f1a 100%);
+    linear-gradient(135deg, #0f172a 0%, #0c1929 55%, #0f2035 100%);
   --gradient-surface-panel: linear-gradient(
     145deg,
-    #102b1b 0%,
-    #0f3f3a 42%,
-    #17345f 100%
+    #0c3347 0%,
+    #0e4f6e 42%,
+    #1e3a5f 100%
   );
   --gradient-surface-vibrant:
     radial-gradient(
       circle at 12% 16%,
-      color-mix(in srgb, var(--brand-lime) 18%, transparent),
+      color-mix(in srgb, var(--brand-teal) 14%, transparent),
       transparent 18rem
     ),
     radial-gradient(
       circle at 88% 18%,
-      color-mix(in srgb, var(--brand-sky) 16%, transparent),
+      color-mix(in srgb, var(--brand-sky) 12%, transparent),
       transparent 20rem
     ),
     radial-gradient(
       circle at 50% 100%,
-      color-mix(in srgb, var(--brand-amber) 12%, transparent),
+      color-mix(in srgb, var(--brand-indigo) 10%, transparent),
       transparent 22rem
     ),
     linear-gradient(
@@ -444,13 +444,13 @@
   --gradient-surface-soft-border: rgb(255 255 255 / 0.1);
   --auth-grid-line: color-mix(in srgb, var(--primary) 10%, transparent);
   --auth-contour-line: color-mix(in srgb, var(--secondary) 12%, transparent);
-  --auth-orb-primary: color-mix(in srgb, var(--brand-lime) 18%, transparent);
+  --auth-orb-primary: color-mix(in srgb, var(--brand-teal) 18%, transparent);
   --auth-orb-secondary: color-mix(in srgb, var(--brand-sky) 16%, transparent);
-  --chart-1: #65c88f;
-  --chart-2: #5eead4;
+  --chart-1: #34d399;
+  --chart-2: #22d3ee;
   --chart-3: #fbbf24;
   --chart-4: #60a5fa;
-  --chart-5: #c084fc;
+  --chart-5: #a78bfa;
   --error-400-bg-color: #ef4444;
   --error-401-bg-color: #f59e0b;
   --error-403-bg-color: #d97706;

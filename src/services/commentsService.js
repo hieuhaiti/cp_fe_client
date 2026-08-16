@@ -12,7 +12,7 @@ export function getNewsComments(newsId, params = {}) {
     withQuery(`${NEWS_PATH}/${encodeURIComponent(newsId)}/comments`, {
       page: 1,
       limit: 20,
-      lang: "vi",
+      status: "approved",
       ...params,
     }),
   );
@@ -24,7 +24,7 @@ export function useGetNewsCommentsQuery(newsId, params = {}, options = {}) {
     withQuery(`${NEWS_PATH}/${encodeURIComponent(newsId)}/comments`, {
       page: 1,
       limit: 20,
-      lang: "vi",
+      status: "approved",
       ...params,
     }),
     {
