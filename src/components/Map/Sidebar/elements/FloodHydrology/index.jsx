@@ -67,14 +67,6 @@ const MODULES = [
       "Đây là kịch bản mô phỏng địa hình, không phải vùng ngập được quan sát thực tế.",
   },
   {
-    code: "rain",
-    short: "M3",
-    label: "Nguy cơ theo mưa",
-    description: "Chỉ số rủi ro tương đối dựa trên lượng mưa",
-    notice:
-      "Chỉ số nguy cơ theo mưa là chỉ số tương đối, không phải xác suất xảy ra ngập.",
-  },
-  {
     code: "impact",
     short: "M4",
     label: "Tác động ngập",
@@ -112,9 +104,6 @@ const ARTIFACT_GLOSSARY = {
   hand_scenario:
     "Vùng có thể ngập theo ngưỡng cao độ HAND đã chọn. Đây là mô phỏng, không phải quan sát thực tế.",
   hand_depth: "Độ sâu ngập ước tính theo kịch bản HAND, tính bằng mét.",
-  rain_risk_score:
-    "Chỉ số rủi ro liên tục từ 0 đến 1 dựa trên mưa, không phải xác suất ngập.",
-  rain_risk_class: "Phân lớp nguy cơ theo mưa: thấp, trung bình và cao.",
   affected_population:
     "Ước tính dân cư nằm trong vùng chịu ảnh hưởng bởi ngập.",
   affected_cropland: "Đất trồng trọt giao với vùng chịu ảnh hưởng bởi ngập.",
@@ -226,7 +215,7 @@ function getAnalysisPeriods(module, run) {
   // Also check the API-level `period` field added by listPublicRuns.
   const apiPeriod = run?.period || {};
 
-  if (module === "event" || module === "rain") {
+  if (module === "event") {
     const preStart = formatDateShort(metadata.preStart);
     const preEnd = formatDateShort(metadata.preEnd);
     const postStart = formatDateShort(metadata.postStart);
@@ -297,7 +286,7 @@ function runPeriodLabel(module, run) {
   const metadata = runMetadata(run);
   const apiPeriod = run?.period || {};
 
-  if (module === "event" || module === "rain") {
+  if (module === "event") {
     const start = metadata.postStart || apiPeriod.start;
     const end = metadata.postEnd || apiPeriod.end;
     if (!start) return null;
@@ -370,24 +359,6 @@ function getModuleMetrics(module, run) {
       {
         label: "Độ sâu lớn nhất",
         value: formatMetric(metadata.maxDepthM, "m"),
-      },
-    ],
-    rain: [
-      {
-        label: "Vùng nguy cơ cao",
-        value: formatMetric(metadata.highRiskAreaHa, "ha"),
-      },
-      {
-        label: "Mưa 24 giờ",
-        value: formatMetric(metadata.rainMm24h, "mm"),
-      },
-      {
-        label: "Mưa 7 ngày",
-        value: formatMetric(metadata.rainMm7d, "mm"),
-      },
-      {
-        label: "Ngưỡng phân lớp",
-        value: formatMetric(metadata.threshold, ""),
       },
     ],
     impact: [
@@ -888,14 +859,6 @@ export function FloodHydrology() {
     [selectedModule, selectedRun],
   );
 
-  const selectedWarnings = useMemo(() => {
-    const metadataWarnings = runMetadata(selectedRun)?.warnings;
-    return [
-      ...(Array.isArray(selectedRun?.warnings) ? selectedRun.warnings : []),
-      ...(Array.isArray(metadataWarnings) ? metadataWarnings : []),
-    ].filter((warning, index, values) => values.indexOf(warning) === index);
-  }, [selectedRun]);
-
   const visibleSelectedCount = selectedLayers.filter((layer) =>
     visibleIds.has(layer.id),
   ).length;
@@ -984,7 +947,7 @@ export function FloodHydrology() {
             <div className="min-w-0">
               <CardTitle className="text-sm">Ngập lụt và thủy văn</CardTitle>
               <CardDescription className="mt-1 whitespace-normal text-[11px] text-(--gradient-surface-panel-muted)">
-                TP Cẩm Phả · Dữ liệu phân tích M1–M5
+                TP Cẩm Phả
               </CardDescription>
             </div>
           </div>
