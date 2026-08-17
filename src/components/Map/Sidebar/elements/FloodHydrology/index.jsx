@@ -87,15 +87,13 @@ const ARTIFACT_GLOSSARY = {
     "Vùng triều cần đối soát chất lượng trong phân tích xu thế.",
   trend_mining_candidate:
     "Vùng khai trường mỏ cần đối soát chất lượng trong phân tích xu thế.",
-  // M5 FINAL — Xu thế theo năm
+  // M5 MONITORING — Giám sát theo kỳ
   flood_extent:
-    "Các khu vực được hệ thống phát hiện có dấu hiệu ngập trong ít nhất một mùa của năm. Đây là lớp báo cáo tổng hợp chính của phân tích xu thế FINAL.",
+    "Các khu vực được hệ thống phát hiện có dấu hiệu ngập trong kỳ giám sát. Đây là lớp báo cáo chính của phân tích kỳ.",
   flood_frequency:
-    "Số mùa trong năm một vị trí được ghi nhận có dấu hiệu ngập (tối đa 4 mùa). Vị trí có giá trị cao hơn xuất hiện ngập thường xuyên hơn.",
+    "Số lần một vị trí được ghi nhận ngập trong kỳ giám sát (0 hoặc 1 đối với mô hình kỳ đơn). Lớp kiểm định kỹ thuật.",
   frequent_flood:
-    "Vùng được ghi nhận ngập từ 2 mùa trở lên trong năm. Đây là các khu vực có nguy cơ ngập tái diễn cao.",
-  new_flood:
-    "Vùng mới xuất hiện dấu hiệu ngập trong năm phân tích, so sánh với lớp phủ đất trước đó.",
+    "Vùng vượt ngưỡng xác nhận ngập trong kỳ giám sát. Trong mô hình kỳ đơn, lớp này tương đương flood_extent. Lớp kiểm định kỹ thuật.",
   pop_affected:
     "Ước tính số người sinh sống trong vùng được phát hiện có dấu hiệu ngập. Dữ liệu dân số từ WorldPop năm 2020.",
   crop_affected:
@@ -127,8 +125,6 @@ const WARNING_LABELS = {
     "Dữ liệu địa hình FABDEM có điều kiện giới hạn khi sử dụng thương mại.",
   TERRAIN_FELL_BACK_TO_DSM:
     "Hệ thống đã dùng dữ liệu địa hình dự phòng; độ chính xác có thể giảm.",
-  INSUFFICIENT_VALID_PERIODS_FOR_NEW_FLOOD:
-    "Chưa đủ kỳ dữ liệu hợp lệ để kết luận chắc chắn về vùng ngập mới.",
   NO_DRY_SEASON_IMAGES:
     "Không có ảnh Sentinel-1 trong kỳ tham chiếu khô — kết quả cần xem xét thêm.",
 };
@@ -147,34 +143,28 @@ const ARTIFACT_PRIORITY = {
   trend_frequency: 1,
   trend_frequent_flood: 2,
   trend_new_flood: 3,
-  // M5 FINAL — nhóm A: Ngập lụt
+  // M5 MONITORING — nhóm A: Ngập lụt
   flood_extent: 1,
-  flood_frequency: 2,
-  frequent_flood: 3,
-  new_flood: 4,
-  // M5 FINAL — nhóm B: Ảnh hưởng
+  // M5 MONITORING — nhóm B: Ảnh hưởng
   pop_affected: 5,
   crop_affected: 6,
   built_affected: 7,
-  // M5 FINAL — nhóm C: Tiêu thoát
+  // M5 MONITORING — nhóm C: Tiêu thoát
   pond_to_built: 8,
   drainage_sensitive: 9,
   encroachment_alert: 10,
-  // M5 FINAL — nhóm D: Kỹ thuật (cuối)
-  stratum: 20,
+  // M5 MONITORING — nhóm D: Kỹ thuật (QA)
+  frequent_flood: 20,
+  flood_frequency: 21,
+  stratum: 22,
 };
 
-// Layer grouping for trend FINAL artifacts.
+// Layer grouping for trend MONITORING artifacts.
 const TREND_LAYER_GROUPS = [
   {
     key: "flood",
     label: "Ngập lụt",
-    codes: new Set([
-      "flood_extent",
-      "flood_frequency",
-      "frequent_flood",
-      "new_flood",
-    ]),
+    codes: new Set(["flood_extent"]),
   },
   {
     key: "impact",
@@ -193,7 +183,7 @@ const TREND_LAYER_GROUPS = [
   {
     key: "qa",
     label: "Kỹ thuật (QA)",
-    codes: new Set(["stratum"]),
+    codes: new Set(["frequent_flood", "flood_frequency", "stratum"]),
   },
 ];
 
@@ -245,15 +235,34 @@ function formatDateShort(value) {
 function getAnalysisPeriods(run) {
   const metadata = runMetadata(run);
 
-  const periods = [
-    { label: "Năm phân tích", value: String(metadata.analysisYear) },
-  ];
+  const isMonitoring = metadata.monitorStart != null;
+  const monitorStart = metadata.monitorStart;
+  const monitorEnd   = metadata.monitorEnd;
+  const dryWindow    = metadata.dryWindow;
+
+  const periods = [];
+
+  if (isMonitoring && monitorStart) {
+    periods.push({
+      label: "Kỳ giám sát",
+      value: monitorEnd ? `${formatDateShort(monitorStart)} – ${formatDateShort(monitorEnd)}` : formatDateShort(monitorStart),
+    });
+    if (dryWindow?.start) {
+      periods.push({
+        label: "Kỳ tham chiếu khô",
+        value: `${formatDateShort(dryWindow.start)} – ${formatDateShort(dryWindow.end)}`,
+      });
+    }
+  } else if (metadata.analysisYear != null) {
+    periods.push({ label: "Năm phân tích", value: String(metadata.analysisYear) });
+  }
+
   const analysisPeriods = metadata.analysisPeriods || [];
   if (analysisPeriods.length > 0) {
     const validCount = metadata.validPeriodCount;
     const total = metadata.totalPeriods ?? analysisPeriods.length;
     periods.push({
-      label: "Chất lượng từng mùa",
+      label: isMonitoring ? "Kỳ dữ liệu" : "Chất lượng từng mùa",
       type: "season_quality",
       seasons: analysisPeriods.map((p) => ({
         name: p.label || p.start?.slice(0, 7),
@@ -262,7 +271,7 @@ function getAnalysisPeriods(run) {
       })),
       countSuffix:
         validCount != null && validCount < total
-          ? `${validCount}/${total} mùa có dữ liệu`
+          ? `${validCount}/${total} kỳ có dữ liệu`
           : null,
     });
   }
@@ -280,38 +289,39 @@ function getAnalysisPeriods(run) {
 }
 
 /**
- * Short label shown in the "Chọn năm phân tích" dropdown.
+ * Short label shown in the run-selector dropdown.
  */
 function runPeriodLabel(run) {
-  return String(
-    run?.params_snapshot?.analysisYear ||
-      runMetadata(run).analysisYear ||
-      run?.id,
-  );
+  const meta = runMetadata(run);
+  if (meta.monitorStart) {
+    return meta.monitorEnd ? `${meta.monitorStart} – ${meta.monitorEnd}` : meta.monitorStart;
+  }
+  return String(meta.analysisYear || run?.id);
 }
 
 function getModuleMetrics(run) {
   const metadata = runMetadata(run);
+  const isMonitoring = metadata.monitorStart != null;
+
   return [
-    {
-      label: "Năm phân tích",
-      value:
-        metadata.analysisYear != null ? String(metadata.analysisYear) : null,
-    },
-    {
-      label: "Kỳ có dữ liệu",
-      value:
-        metadata.validPeriodCount != null && metadata.totalPeriods != null
-          ? `${formatNumber(metadata.validPeriodCount, { maximumFractionDigits: 0 })}/${formatNumber(metadata.totalPeriods, { maximumFractionDigits: 0 })} mùa`
-          : null,
-    },
+    isMonitoring
+      ? {
+          label: "Kỳ giám sát",
+          value: metadata.monitorEnd
+            ? `${metadata.monitorStart} – ${metadata.monitorEnd}`
+            : metadata.monitorStart ?? null,
+        }
+      : {
+          label: "Năm phân tích",
+          value: metadata.analysisYear != null ? String(metadata.analysisYear) : null,
+        },
     {
       label: "Diện tích ngập",
       value: formatMetric(metadata.areaStats?.floodExtentAreaHa, "ha"),
     },
     {
-      label: "Ngập tái diễn",
-      value: formatMetric(metadata.areaStats?.frequentFloodAreaHa, "ha"),
+      label: "Cảnh báo tiêu thoát",
+      value: formatMetric(metadata.areaStats?.drainageAlertAreaHa, "ha"),
     },
     {
       label: "Dân số ảnh hưởng",
@@ -849,7 +859,7 @@ export function FloodHydrology() {
             <div className="min-w-0">
               <CardTitle className="text-sm">Ngập lụt và thủy văn</CardTitle>
               <CardDescription className="mt-1 whitespace-normal text-[11px] text-(--gradient-surface-panel-muted)">
-                Phân tích theo năm · Cẩm Phả
+                Giám sát ngập · Cẩm Phả
               </CardDescription>
             </div>
           </div>
@@ -897,10 +907,10 @@ export function FloodHydrology() {
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <StepLabel step="1" htmlFor="flood-period-select">
-                      Chọn năm phân tích
+                      Chọn kỳ giám sát
                     </StepLabel>
                     <Badge variant="outline" className="text-[10px]">
-                      {availableRuns.length} năm
+                      {availableRuns.length} kỳ
                     </Badge>
                   </div>
                   <Select
@@ -914,9 +924,9 @@ export function FloodHydrology() {
                       variant="filled"
                       isLoading={loading && availableRuns.length > 0}
                       className="w-full text-xs"
-                      aria-label="Chọn năm phân tích ngập lụt"
+                      aria-label="Chọn kỳ giám sát ngập lụt"
                     >
-                      <SelectValue placeholder="Chưa có năm phân tích." />
+                      <SelectValue placeholder="Chưa có kỳ giám sát." />
                     </SelectTrigger>
                     <SelectContent
                       position="popper"
@@ -1028,7 +1038,7 @@ export function FloodHydrology() {
                 ) : (
                   <div className="rounded-lg border border-dashed border-border p-5 text-center text-muted-foreground">
                     <CalendarDays className="mx-auto size-7 opacity-30" />
-                    <p className="mt-2 text-xs">Chưa có năm phân tích.</p>
+                    <p className="mt-2 text-xs">Chưa có kỳ giám sát.</p>
                   </div>
                 )}
               </div>
@@ -1071,7 +1081,7 @@ export function FloodHydrology() {
                     <div className="rounded-lg border border-dashed border-border py-6 text-center text-muted-foreground">
                       <BarChart3 className="mx-auto size-8 opacity-30" />
                       <p className="mt-2 px-3 text-xs">
-                        Chưa có lớp bản đồ được công bố cho năm này.
+                        Chưa có lớp bản đồ được công bố cho kỳ này.
                       </p>
                     </div>
                   )}
