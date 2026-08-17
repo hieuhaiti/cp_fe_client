@@ -288,7 +288,7 @@ export default function Header() {
                             variant="soft-primary"
                             className="h-auto w-full justify-start px-4 py-2"
                             onClick={() =>
-                              openExternalLink("/uploads/apk/gis-cam-pha.apk")
+                              openExternalLink("/uploads/campha.apk")
                             }
                           >
                             <Smartphone />
@@ -349,9 +349,7 @@ export default function Header() {
                         variant="soft-primary"
                         size="icon-sm"
                         className="rounded-full"
-                        onClick={() =>
-                          openExternalLink("/uploads/apk/gis-cam-pha.apk")
-                        }
+                        onClick={() => openExternalLink("/uploads/campha.apk")}
                         aria-label="Tải ứng dụng"
                       >
                         <Smartphone />

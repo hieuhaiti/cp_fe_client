@@ -167,24 +167,33 @@ const ARTIFACT_PRIORITY = {
 // Layer grouping for trend FINAL artifacts.
 const TREND_LAYER_GROUPS = [
   {
-    key: 'flood',
-    label: 'Ngập lụt',
-    codes: new Set(['flood_extent', 'flood_frequency', 'frequent_flood', 'new_flood']),
+    key: "flood",
+    label: "Ngập lụt",
+    codes: new Set([
+      "flood_extent",
+      "flood_frequency",
+      "frequent_flood",
+      "new_flood",
+    ]),
   },
   {
-    key: 'impact',
-    label: 'Ảnh hưởng',
-    codes: new Set(['pop_affected', 'crop_affected', 'built_affected']),
+    key: "impact",
+    label: "Ảnh hưởng",
+    codes: new Set(["pop_affected", "crop_affected", "built_affected"]),
   },
   {
-    key: 'drainage',
-    label: 'Tiêu thoát nước',
-    codes: new Set(['pond_to_built', 'drainage_sensitive', 'encroachment_alert']),
+    key: "drainage",
+    label: "Tiêu thoát nước",
+    codes: new Set([
+      "pond_to_built",
+      "drainage_sensitive",
+      "encroachment_alert",
+    ]),
   },
   {
-    key: 'qa',
-    label: 'Kỹ thuật (QA)',
-    codes: new Set(['stratum']),
+    key: "qa",
+    label: "Kỹ thuật (QA)",
+    codes: new Set(["stratum"]),
   },
 ];
 
@@ -236,40 +245,36 @@ function formatDateShort(value) {
 function getAnalysisPeriods(run) {
   const metadata = runMetadata(run);
 
-  const periods = [{ label: "Năm phân tích", value: String(metadata.analysisYear) }];
-  const dryWindow = metadata.dryWindow;
-  if (dryWindow?.start && dryWindow?.end) {
-    periods.push({
-      label: "Kỳ tham chiếu khô",
-      value: `${formatDateShort(dryWindow.start)} → ${formatDateShort(dryWindow.end)}`,
-    });
-  }
+  const periods = [
+    { label: "Năm phân tích", value: String(metadata.analysisYear) },
+  ];
   const analysisPeriods = metadata.analysisPeriods || [];
   if (analysisPeriods.length > 0) {
     const validCount = metadata.validPeriodCount;
     const total = metadata.totalPeriods ?? analysisPeriods.length;
-    const seasonQuality = analysisPeriods.map((p) => {
-      const hasData = p.valid !== false && (p.imageCount == null || p.imageCount > 0);
-      const icon = hasData ? "✓" : "⚠";
-      const label = p.label || p.start?.slice(0, 7);
-      const count = p.imageCount != null ? ` (${p.imageCount})` : "";
-      return `${label}${count} ${icon}`;
-    });
-    const countSuffix = validCount != null && validCount < total
-      ? ` — ${validCount}/${total} mùa có dữ liệu`
-      : "";
     periods.push({
       label: "Chất lượng từng mùa",
-      value: seasonQuality.join("  ·  ") + countSuffix,
+      type: "season_quality",
+      seasons: analysisPeriods.map((p) => ({
+        name: p.label || p.start?.slice(0, 7),
+        imageCount: p.imageCount ?? null,
+        valid: p.valid !== false && (p.imageCount == null || p.imageCount > 0),
+      })),
+      countSuffix:
+        validCount != null && validCount < total
+          ? `${validCount}/${total} mùa có dữ liệu`
+          : null,
     });
   }
   if (metadata.orbitSelected || metadata.orbitRequested) {
     const selected = metadata.orbitSelected || metadata.orbitPass;
     const requested = metadata.orbitRequested;
-    const orbitText = requested === "AUTO" && selected
-      ? `${selected} (AUTO đã chọn)`
-      : selected || requested;
-    if (orbitText) periods.push({ label: "Quỹ đạo Sentinel-1", value: orbitText });
+    const orbitText =
+      requested === "AUTO" && selected
+        ? `${selected} (AUTO đã chọn)`
+        : selected || requested;
+    if (orbitText)
+      periods.push({ label: "Quỹ đạo Sentinel-1", value: orbitText });
   }
   return periods;
 }
@@ -278,7 +283,11 @@ function getAnalysisPeriods(run) {
  * Short label shown in the "Chọn năm phân tích" dropdown.
  */
 function runPeriodLabel(run) {
-  return String(run?.params_snapshot?.analysisYear || runMetadata(run).analysisYear || run?.id);
+  return String(
+    run?.params_snapshot?.analysisYear ||
+      runMetadata(run).analysisYear ||
+      run?.id,
+  );
 }
 
 function getModuleMetrics(run) {
@@ -286,7 +295,8 @@ function getModuleMetrics(run) {
   return [
     {
       label: "Năm phân tích",
-      value: metadata.analysisYear != null ? String(metadata.analysisYear) : null,
+      value:
+        metadata.analysisYear != null ? String(metadata.analysisYear) : null,
     },
     {
       label: "Kỳ có dữ liệu",
@@ -305,28 +315,23 @@ function getModuleMetrics(run) {
     },
     {
       label: "Dân số ảnh hưởng",
-      value: metadata.areaStats?.populationAffected != null
-        ? formatMetric(metadata.areaStats.populationAffected, "người", { maximumFractionDigits: 0 })
-        : null,
+      value:
+        metadata.areaStats?.populationAffected != null
+          ? formatMetric(metadata.areaStats.populationAffected, "người", {
+              maximumFractionDigits: 0,
+            })
+          : null,
     },
     {
       label: "Đất nông nghiệp",
       value: formatMetric(metadata.areaStats?.cropAffectedAreaHa, "ha"),
-    },
-    {
-      label: "Ảnh kỳ tham chiếu",
-      value: formatMetric(metadata.drySceneCount, "ảnh", { maximumFractionDigits: 0 }),
-    },
-    {
-      label: "Quỹ đạo",
-      value: metadata.orbitSelected || metadata.orbitPass || null,
     },
   ].filter(({ value }) => value != null);
 }
 
 function buildAvailableRuns(runs, layers, overview) {
   const byId = new Map();
-  const module = 'trend';
+  const module = "trend";
 
   const addRun = (run) => {
     const id = normalizeId(run?.id);
@@ -367,8 +372,12 @@ function buildAvailableRuns(runs, layers, overview) {
     });
 
   return [...byId.values()].sort((left, right) => {
-    const leftTime = new Date(left.finishedAt || left.publishedAt || 0).getTime();
-    const rightTime = new Date(right.finishedAt || right.publishedAt || 0).getTime();
+    const leftTime = new Date(
+      left.finishedAt || left.publishedAt || 0,
+    ).getTime();
+    const rightTime = new Date(
+      right.finishedAt || right.publishedAt || 0,
+    ).getTime();
     return rightTime - leftTime;
   });
 }
@@ -581,6 +590,7 @@ export function FloodHydrology() {
   const [visibleIds, setVisibleIds] = useState(() => new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [collapsed, setCollapsed] = useState(false);
   const abortControllerRef = useRef(null);
   const runsAbortRef = useRef(null);
   const layersRef = useRef([]);
@@ -631,7 +641,7 @@ export function FloodHydrology() {
     runsAbortRef.current = controller;
     try {
       const runResponse = await getFloodRuns(
-        { module: 'trend', mode: "product", page: 1, limit: 50 },
+        { module: "trend", mode: "product", page: 1, limit: 50 },
         { signal: controller.signal },
       );
       if (controller.signal.aborted) return;
@@ -713,7 +723,7 @@ export function FloodHydrology() {
   }, [visibleIds, layers, legendsByCode]);
 
   const layerCounts = useMemo(() => {
-    return layers.filter((l) => l.module === 'trend').length;
+    return layers.filter((l) => l.module === "trend").length;
   }, [layers]);
 
   const availableRuns = useMemo(
@@ -735,7 +745,7 @@ export function FloodHydrology() {
       layers
         .filter(
           (layer) =>
-            layer.module === 'trend' &&
+            layer.module === "trend" &&
             normalizeId(layer.analysisRunId) === effectiveRunId &&
             layer.layerName &&
             layer.workspace,
@@ -882,6 +892,7 @@ export function FloodHydrology() {
             <FloodHydrologySkeleton />
           ) : (
             <>
+              {/* Step 1 — always visible */}
               <section className="space-y-3" aria-label="Chọn dữ liệu ngập lụt">
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
@@ -924,61 +935,105 @@ export function FloodHydrology() {
                 </div>
               </section>
 
-              <div
-                role="note"
-                className="rounded-lg border border-info/25 bg-(--info-subtle) px-2.5 py-2 text-(--info-subtle-foreground)"
-              >
-                <div className="flex items-start gap-2">
-                  <Info className="mt-0.5 size-3.5 shrink-0 text-info" />
-                  <p className="text-[11px] leading-4">
-                    Dữ liệu phân tích ngập từ thuật toán VH-only Otsu 3 tầng. Đối chiếu hiện trường trước khi dùng cho quyết định quản lý.
-                  </p>
-                </div>
+              <div className="space-y-3">
+                {selectedRun ? (
+                  <section
+                    className="space-y-3"
+                    aria-label="Kết quả kỳ đã chọn"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-muted/20 p-2">
+                      <div className="flex min-w-0 items-center gap-1.5">
+                        <Clock3 className="size-3.5 shrink-0 text-info" />
+                        <span className="truncate text-[10px] text-muted-foreground">
+                          Cập nhật {formatDateTime(selectedRun.finishedAt)}
+                        </span>
+                      </div>
+                      <StatusBadge status={selectedRun.status} />
+                    </div>
+
+                    {selectedPeriods.length ? (
+                      <div
+                        className="space-y-1.5 rounded-lg border border-info/20 bg-(--info-subtle) p-2.5"
+                        aria-label="Kỳ phân tích"
+                      >
+                        {selectedPeriods.map((period) =>
+                          period.type === "season_quality" ? (
+                            <div key={period.label} className="space-y-1">
+                              <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                                <CalendarDays className="size-3 shrink-0 text-info" />
+                                {period.label}
+                              </span>
+                              <div className="grid grid-cols-2 gap-x-3 gap-y-1 pl-4">
+                                {period.seasons.map((s) => (
+                                  <div
+                                    key={s.name}
+                                    className="flex items-center gap-1 text-[11px]"
+                                  >
+                                    <span
+                                      className={`font-medium ${s.valid ? "text-(--info-subtle-foreground)" : "text-amber-600"}`}
+                                    >
+                                      {s.name}
+                                    </span>
+                                    {s.imageCount != null ? (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className="cursor-default rounded bg-info/10 px-1 text-[10px] font-medium text-info tabular-nums">
+                                            {s.imageCount}
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          {s.imageCount} ảnh vệ tinh thu nhận
+                                          được
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    ) : null}
+                                    <span
+                                      className={
+                                        s.valid
+                                          ? "text-emerald-600"
+                                          : "text-amber-500"
+                                      }
+                                    >
+                                      {s.valid ? "✓" : "⚠"}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                              {period.countSuffix ? (
+                                <p className="pl-4 text-[10px] text-muted-foreground">
+                                  {period.countSuffix}
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <div
+                              key={period.label}
+                              className="flex items-center justify-between gap-2 text-[11px]"
+                            >
+                              <span className="flex items-center gap-1.5 text-muted-foreground">
+                                <CalendarDays className="size-3 shrink-0 text-info" />
+                                {period.label}
+                              </span>
+                              <span className="font-medium text-(--info-subtle-foreground)">
+                                {period.value}
+                              </span>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    ) : null}
+
+                    <MetricGrid metrics={selectedMetrics} />
+                  </section>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-border p-5 text-center text-muted-foreground">
+                    <CalendarDays className="mx-auto size-7 opacity-30" />
+                    <p className="mt-2 text-xs">Chưa có năm phân tích.</p>
+                  </div>
+                )}
               </div>
 
-              {selectedRun ? (
-                <section className="space-y-3" aria-label="Kết quả kỳ đã chọn">
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-muted/20 p-2">
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      <Clock3 className="size-3.5 shrink-0 text-info" />
-                      <span className="truncate text-[10px] text-muted-foreground">
-                        Cập nhật {formatDateTime(selectedRun.finishedAt)}
-                      </span>
-                    </div>
-                    <StatusBadge status={selectedRun.status} />
-                  </div>
-
-                  {selectedPeriods.length ? (
-                    <div
-                      className="space-y-1.5 rounded-lg border border-info/20 bg-(--info-subtle) p-2.5"
-                      aria-label="Kỳ phân tích"
-                    >
-                      {selectedPeriods.map((period) => (
-                        <div
-                          key={period.label}
-                          className="flex items-center justify-between gap-2 text-[11px]"
-                        >
-                          <span className="flex items-center gap-1.5 text-muted-foreground">
-                            <CalendarDays className="size-3 shrink-0 text-info" />
-                            {period.label}
-                          </span>
-                          <span className="font-medium text-(--info-subtle-foreground)">
-                            {period.value}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  <MetricGrid metrics={selectedMetrics} />
-                </section>
-              ) : (
-                <div className="rounded-lg border border-dashed border-border p-5 text-center text-muted-foreground">
-                  <CalendarDays className="mx-auto size-7 opacity-30" />
-                  <p className="mt-2 text-xs">Chưa có năm phân tích.</p>
-                </div>
-              )}
-
+              {/* Step 2 — always visible */}
               {selectedRun ? (
                 <section
                   className="space-y-2"
@@ -1038,7 +1093,9 @@ function TrendLayerGroups({ layers, legendsByCode, visibleIds, onToggle }) {
   })).filter((group) => group.items.length > 0);
 
   // Catch any artifacts not in any group
-  const allGroupedCodes = new Set(TREND_LAYER_GROUPS.flatMap((g) => [...g.codes]));
+  const allGroupedCodes = new Set(
+    TREND_LAYER_GROUPS.flatMap((g) => [...g.codes]),
+  );
   layers.forEach((a) => {
     if (!allGroupedCodes.has(a.code)) ungrouped.push(a);
   });
