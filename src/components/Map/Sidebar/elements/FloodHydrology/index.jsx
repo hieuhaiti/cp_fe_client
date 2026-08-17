@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
-  AlertTriangle,
   BarChart3,
   CalendarDays,
   ChevronDown,
@@ -9,7 +8,6 @@ import {
   Eye,
   EyeOff,
   Info,
-  Layers3,
   Loader2,
   RefreshCw,
   Waves,
@@ -49,46 +47,11 @@ import {
   getFloodRuns,
 } from "@/features/flood/api/floodApi";
 
-const MODULES = [
-  {
-    code: "event",
-    short: "M1",
-    label: "Hiện trạng ngập",
-    description: "So sánh ảnh vệ tinh trước và sau sự kiện",
-    notice:
-      "Kết quả quan sát từ ảnh radar Sentinel-1. Vùng triều và các khu vực dễ gây nhiễu đã được tách khỏi lớp báo cáo chính.",
-  },
-  {
-    code: "hand",
-    short: "M2",
-    label: "Kịch bản HAND",
-    description: "Mô phỏng theo độ cao và độ dốc địa hình",
-    notice:
-      "Đây là kịch bản mô phỏng địa hình, không phải vùng ngập được quan sát thực tế.",
-  },
-  {
-    code: "impact",
-    short: "M4",
-    label: "Tác động ngập",
-    description: "Dân cư, đất trồng trọt và khu xây dựng",
-    notice:
-      "Mô-đun tác động chủ yếu cung cấp số liệu thống kê; có thể không có lớp raster công khai.",
-  },
-  {
-    code: "trend",
-    short: "M5",
-    label: "Xu thế nhiều năm",
-    description: "Tần suất, ngập mới và biến động sử dụng đất",
-    notice:
-      "Dùng để theo dõi xu thế dài hạn. Cần đối chiếu hiện trường trước khi sử dụng cho quyết định quản lý.",
-  },
-];
-
 /**
  * Diễn giải ngắn gọn, dễ hiểu cho từng loại lớp raster.
- * Người dùng cuối không cần biết mã kỹ thuật (fl_event_open_water_r15…).
  */
 const ARTIFACT_GLOSSARY = {
+  // M1 — Hiện trạng ngập
   main_flood_non_tidal:
     "Vùng ngập đã xác nhận, loại bỏ khu vực dao động triều ven biển. Đây là lớp báo cáo chính.",
   open_water:
@@ -101,13 +64,16 @@ const ARTIFACT_GLOSSARY = {
     "Vùng nghi khai trường mỏ, nơi bề mặt trơ có thể bị nhận nhầm là ngập.",
   urban_double_bounce:
     "Vùng nghi phản xạ đôi ở đô thị, thường không phải là vùng ngập.",
+  // M2 — HAND
   hand_scenario:
     "Vùng có thể ngập theo ngưỡng cao độ HAND đã chọn. Đây là mô phỏng, không phải quan sát thực tế.",
   hand_depth: "Độ sâu ngập ước tính theo kịch bản HAND, tính bằng mét.",
+  // M4 — Tác động
   affected_population:
     "Ước tính dân cư nằm trong vùng chịu ảnh hưởng bởi ngập.",
   affected_cropland: "Đất trồng trọt giao với vùng chịu ảnh hưởng bởi ngập.",
   affected_built: "Khu vực xây dựng giao với vùng chịu ảnh hưởng bởi ngập.",
+  // M5 V1 — Xu thế (cũ)
   trend_frequency:
     "Tỷ lệ số kỳ một vị trí được nhận diện là ngập trong chuỗi nhiều năm.",
   trend_frequent_flood: "Vùng ngập tái diễn nhiều lần theo thời gian.",
@@ -121,6 +87,23 @@ const ARTIFACT_GLOSSARY = {
     "Vùng triều cần đối soát chất lượng trong phân tích xu thế.",
   trend_mining_candidate:
     "Vùng khai trường mỏ cần đối soát chất lượng trong phân tích xu thế.",
+  // M5 FINAL — Xu thế theo năm
+  flood_extent:
+    "Các khu vực được hệ thống phát hiện có dấu hiệu ngập trong ít nhất một mùa của năm. Đây là lớp báo cáo tổng hợp chính của phân tích xu thế FINAL.",
+  flood_frequency:
+    "Số mùa trong năm một vị trí được ghi nhận có dấu hiệu ngập (tối đa 4 mùa). Vị trí có giá trị cao hơn xuất hiện ngập thường xuyên hơn.",
+  frequent_flood:
+    "Vùng được ghi nhận ngập từ 2 mùa trở lên trong năm. Đây là các khu vực có nguy cơ ngập tái diễn cao.",
+  new_flood:
+    "Vùng mới xuất hiện dấu hiệu ngập trong năm phân tích, so sánh với lớp phủ đất trước đó.",
+  pop_affected:
+    "Ước tính số người sinh sống trong vùng được phát hiện có dấu hiệu ngập. Dữ liệu dân số từ WorldPop năm 2020.",
+  crop_affected:
+    "Đất nông nghiệp (theo WorldCover) nằm trong vùng được phát hiện có dấu hiệu ngập. Dùng để đánh giá ảnh hưởng đến sản xuất nông nghiệp.",
+  built_affected:
+    "Khu vực xây dựng (theo WorldCover) nằm trong vùng được phát hiện có dấu hiệu ngập. Thông tin tham khảo về ảnh hưởng đến cơ sở hạ tầng.",
+  stratum:
+    "Lớp phân tầng dùng trong quá trình phát hiện ngập: (1) vùng phi đô thị — (2) vùng đô thị — (3) khu vực có đặc điểm bề mặt mỏ. Lớp kiểm định kỹ thuật, không dùng trực tiếp cho đánh giá.",
 };
 
 const STATUS_META = {
@@ -146,19 +129,64 @@ const WARNING_LABELS = {
     "Hệ thống đã dùng dữ liệu địa hình dự phòng; độ chính xác có thể giảm.",
   INSUFFICIENT_VALID_PERIODS_FOR_NEW_FLOOD:
     "Chưa đủ kỳ dữ liệu hợp lệ để kết luận chắc chắn về vùng ngập mới.",
+  NO_DRY_SEASON_IMAGES:
+    "Không có ảnh Sentinel-1 trong kỳ tham chiếu khô — kết quả cần xem xét thêm.",
 };
 
 const ARTIFACT_PRIORITY = {
+  // M1
   main_flood_non_tidal: 1,
   open_water: 2,
+  // M2
   hand_scenario: 1,
   hand_depth: 2,
+  // M3
   rain_risk_class: 1,
   rain_risk_score: 2,
+  // M5 V1
   trend_frequency: 1,
   trend_frequent_flood: 2,
   trend_new_flood: 3,
+  // M5 FINAL — nhóm A: Ngập lụt
+  flood_extent: 1,
+  flood_frequency: 2,
+  frequent_flood: 3,
+  new_flood: 4,
+  // M5 FINAL — nhóm B: Ảnh hưởng
+  pop_affected: 5,
+  crop_affected: 6,
+  built_affected: 7,
+  // M5 FINAL — nhóm C: Tiêu thoát
+  pond_to_built: 8,
+  drainage_sensitive: 9,
+  encroachment_alert: 10,
+  // M5 FINAL — nhóm D: Kỹ thuật (cuối)
+  stratum: 20,
 };
+
+// Layer grouping for trend FINAL artifacts.
+const TREND_LAYER_GROUPS = [
+  {
+    key: 'flood',
+    label: 'Ngập lụt',
+    codes: new Set(['flood_extent', 'flood_frequency', 'frequent_flood', 'new_flood']),
+  },
+  {
+    key: 'impact',
+    label: 'Ảnh hưởng',
+    codes: new Set(['pop_affected', 'crop_affected', 'built_affected']),
+  },
+  {
+    key: 'drainage',
+    label: 'Tiêu thoát nước',
+    codes: new Set(['pond_to_built', 'drainage_sensitive', 'encroachment_alert']),
+  },
+  {
+    key: 'qa',
+    label: 'Kỹ thuật (QA)',
+    codes: new Set(['stratum']),
+  },
+];
 
 function unwrap(payload) {
   return payload?.data ?? payload ?? {};
@@ -174,11 +202,6 @@ function describeArtifact(artifact) {
     artifact?.metadata?.description ||
     "Lớp raster chuyên đề dùng để chồng ghép và đối chiếu trên bản đồ."
   );
-}
-
-function describeWarning(warning) {
-  const code = String(warning || "");
-  return WARNING_LABELS[code] || code.replaceAll("_", " ");
 }
 
 function formatNumber(value, options = {}) {
@@ -210,207 +233,100 @@ function formatDateShort(value) {
   }).format(parsed);
 }
 
-function getAnalysisPeriods(module, run) {
+function getAnalysisPeriods(run) {
   const metadata = runMetadata(run);
-  // Also check the API-level `period` field added by listPublicRuns.
-  const apiPeriod = run?.period || {};
 
-  if (module === "event") {
-    const preStart = formatDateShort(metadata.preStart);
-    const preEnd = formatDateShort(metadata.preEnd);
-    const postStart = formatDateShort(metadata.postStart);
-    const postEnd = formatDateShort(metadata.postEnd);
-    const periods = [];
-    if (preStart && preEnd) {
-      periods.push({ label: "Kỳ nền", value: `${preStart} → ${preEnd}` });
-    }
-    if (postStart && postEnd) {
-      periods.push({
-        label: "Kỳ phân tích",
-        value: `${postStart} → ${postEnd}`,
-      });
-    }
-    return periods;
+  const periods = [{ label: "Năm phân tích", value: String(metadata.analysisYear) }];
+  const dryWindow = metadata.dryWindow;
+  if (dryWindow?.start && dryWindow?.end) {
+    periods.push({
+      label: "Kỳ tham chiếu khô",
+      value: `${formatDateShort(dryWindow.start)} → ${formatDateShort(dryWindow.end)}`,
+    });
   }
-
-  if (module === "hand") {
-    const levelM = metadata.levelM ?? apiPeriod.levelM;
-    if (levelM == null) return [];
-    return [{ label: "Mực nước kịch bản", value: `${levelM} m` }];
+  const analysisPeriods = metadata.analysisPeriods || [];
+  if (analysisPeriods.length > 0) {
+    const validCount = metadata.validPeriodCount;
+    const total = metadata.totalPeriods ?? analysisPeriods.length;
+    const seasonQuality = analysisPeriods.map((p) => {
+      const hasData = p.valid !== false && (p.imageCount == null || p.imageCount > 0);
+      const icon = hasData ? "✓" : "⚠";
+      const label = p.label || p.start?.slice(0, 7);
+      const count = p.imageCount != null ? ` (${p.imageCount})` : "";
+      return `${label}${count} ${icon}`;
+    });
+    const countSuffix = validCount != null && validCount < total
+      ? ` — ${validCount}/${total} mùa có dữ liệu`
+      : "";
+    periods.push({
+      label: "Chất lượng từng mùa",
+      value: seasonQuality.join("  ·  ") + countSuffix,
+    });
   }
-
-  if (module === "trend") {
-    const baseline = metadata.baselinePeriod || apiPeriod.baseline;
-    const analysisPeriods =
-      metadata.analysisPeriods || apiPeriod.analysis || [];
-    const periods = [];
-    if (baseline?.start && baseline?.end) {
-      periods.push({
-        label: "Kỳ nền",
-        value: `${formatDateShort(baseline.start)} → ${formatDateShort(baseline.end)}`,
-      });
-    }
-    if (analysisPeriods.length > 0) {
-      const first = analysisPeriods[0];
-      const last = analysisPeriods[analysisPeriods.length - 1];
-      periods.push({
-        label: "Kỳ phân tích",
-        value: `${formatDateShort(first.start)} → ${formatDateShort(last.end)} (${analysisPeriods.length} kỳ)`,
-      });
-    }
-    return periods;
+  if (metadata.orbitSelected || metadata.orbitRequested) {
+    const selected = metadata.orbitSelected || metadata.orbitPass;
+    const requested = metadata.orbitRequested;
+    const orbitText = requested === "AUTO" && selected
+      ? `${selected} (AUTO đã chọn)`
+      : selected || requested;
+    if (orbitText) periods.push({ label: "Quỹ đạo Sentinel-1", value: orbitText });
   }
-
-  if (module === "impact") {
-    const src = metadata.impactSource ?? "M1";
-    const postStart = formatDateShort(metadata.postStart);
-    const postEnd = formatDateShort(metadata.postEnd);
-    const periods = [{ label: "Nguồn dữ liệu", value: src }];
-    if (postStart && postEnd) {
-      periods.push({
-        label: "Kỳ phân tích",
-        value: `${postStart} → ${postEnd}`,
-      });
-    }
-    return periods;
-  }
-
-  return [];
+  return periods;
 }
 
 /**
- * Short label shown in the "Chọn kỳ xuất hiện" dropdown.
- * Uses the analysis period / depth rather than the run's finished date.
+ * Short label shown in the "Chọn năm phân tích" dropdown.
  */
-function runPeriodLabel(module, run) {
-  const metadata = runMetadata(run);
-  const apiPeriod = run?.period || {};
-
-  if (module === "event") {
-    const start = metadata.postStart || apiPeriod.start;
-    const end = metadata.postEnd || apiPeriod.end;
-    if (!start) return null;
-    const s = formatDateShort(start);
-    const e = end ? formatDateShort(end) : null;
-    return e && e !== s ? `${s} – ${e}` : s;
-  }
-
-  if (module === "hand") {
-    const levelM = metadata.levelM ?? apiPeriod.levelM;
-    return levelM != null ? `Kịch bản ${levelM} m` : null;
-  }
-
-  if (module === "trend") {
-    const baseline = metadata.baselinePeriod || apiPeriod.baseline;
-    const analysisPeriods =
-      metadata.analysisPeriods || apiPeriod.analysis || [];
-    const baseYear = baseline?.start?.slice(0, 4);
-    const lastYear =
-      analysisPeriods.length > 0
-        ? analysisPeriods[analysisPeriods.length - 1].end?.slice(0, 4)
-        : null;
-    if (baseYear && lastYear) return `${baseYear} – ${lastYear}`;
-    return baseYear || lastYear || null;
-  }
-
-  if (module === "impact") {
-    const src = metadata.impactSource ?? apiPeriod.source ?? "M1";
-    const start = metadata.postStart || apiPeriod.start;
-    return start ? `${src} · ${formatDateShort(start)}` : src;
-  }
-
-  return null;
+function runPeriodLabel(run) {
+  return String(run?.params_snapshot?.analysisYear || runMetadata(run).analysisYear || run?.id);
 }
 
-function getModuleMetrics(module, run) {
+function getModuleMetrics(run) {
   const metadata = runMetadata(run);
-  const metrics = {
-    event: [
-      {
-        label: "Diện tích ngập",
-        value: formatMetric(metadata.mainAreaHa, "ha"),
-      },
-      {
-        label: "Ảnh kỳ nền",
-        value: formatMetric(metadata.preSceneCount, "ảnh", {
-          maximumFractionDigits: 0,
-        }),
-      },
-      {
-        label: "Ảnh kỳ phân tích",
-        value: formatMetric(metadata.postSceneCount, "ảnh", {
-          maximumFractionDigits: 0,
-        }),
-      },
-    ],
-    hand: [
-      {
-        label: "Diện tích kịch bản",
-        value: formatMetric(metadata.scenarioAreaHa, "ha"),
-      },
-      {
-        label: "Mực nước giả định",
-        value: formatMetric(metadata.levelM, "m"),
-      },
-      {
-        label: "Độ sâu trung bình",
-        value: formatMetric(metadata.meanDepthM, "m"),
-      },
-      {
-        label: "Độ sâu lớn nhất",
-        value: formatMetric(metadata.maxDepthM, "m"),
-      },
-    ],
-    impact: [
-      {
-        label: "Dân số ảnh hưởng",
-        value: formatMetric(metadata.affectedPopulation, "người", {
-          maximumFractionDigits: 0,
-        }),
-      },
-      {
-        label: "Diện tích ngập",
-        value: formatMetric(metadata.floodAreaHa, "ha"),
-      },
-      {
-        label: "Đất trồng trọt",
-        value: formatMetric(metadata.affectedCroplandHa, "ha"),
-      },
-      {
-        label: "Khu xây dựng",
-        value: formatMetric(
-          metadata.affectedBuiltHa ?? metadata.affectedBuiltUpHa,
-          "ha",
-        ),
-      },
-    ],
-    trend: [
-      {
-        label: "Kỳ hợp lệ",
-        value:
-          metadata.validPeriodCount != null && metadata.totalPeriods != null
-            ? `${formatNumber(metadata.validPeriodCount, { maximumFractionDigits: 0 })}/${formatNumber(metadata.totalPeriods, { maximumFractionDigits: 0 })} kỳ`
-            : null,
-      },
-      {
-        label: "Ngưỡng tái diễn",
-        value: formatMetric(metadata.frequencyAlertPercent, "%"),
-      },
-      {
-        label: "Độ chính xác tổng thể",
-        value:
-          metadata.assessment?.overallAccuracy != null
-            ? formatMetric(metadata.assessment.overallAccuracy * 100, "%")
-            : null,
-      },
-    ],
-  };
-
-  return (metrics[module] || []).filter(({ value }) => value != null);
+  return [
+    {
+      label: "Năm phân tích",
+      value: metadata.analysisYear != null ? String(metadata.analysisYear) : null,
+    },
+    {
+      label: "Kỳ có dữ liệu",
+      value:
+        metadata.validPeriodCount != null && metadata.totalPeriods != null
+          ? `${formatNumber(metadata.validPeriodCount, { maximumFractionDigits: 0 })}/${formatNumber(metadata.totalPeriods, { maximumFractionDigits: 0 })} mùa`
+          : null,
+    },
+    {
+      label: "Diện tích ngập",
+      value: formatMetric(metadata.areaStats?.floodExtentAreaHa, "ha"),
+    },
+    {
+      label: "Ngập tái diễn",
+      value: formatMetric(metadata.areaStats?.frequentFloodAreaHa, "ha"),
+    },
+    {
+      label: "Dân số ảnh hưởng",
+      value: metadata.areaStats?.populationAffected != null
+        ? formatMetric(metadata.areaStats.populationAffected, "người", { maximumFractionDigits: 0 })
+        : null,
+    },
+    {
+      label: "Đất nông nghiệp",
+      value: formatMetric(metadata.areaStats?.cropAffectedAreaHa, "ha"),
+    },
+    {
+      label: "Ảnh kỳ tham chiếu",
+      value: formatMetric(metadata.drySceneCount, "ảnh", { maximumFractionDigits: 0 }),
+    },
+    {
+      label: "Quỹ đạo",
+      value: metadata.orbitSelected || metadata.orbitPass || null,
+    },
+  ].filter(({ value }) => value != null);
 }
 
-function buildAvailableRuns(module, runs, layers, overview) {
+function buildAvailableRuns(runs, layers, overview) {
   const byId = new Map();
+  const module = 'trend';
 
   const addRun = (run) => {
     const id = normalizeId(run?.id);
@@ -451,12 +367,8 @@ function buildAvailableRuns(module, runs, layers, overview) {
     });
 
   return [...byId.values()].sort((left, right) => {
-    const leftTime = new Date(
-      left.finishedAt || left.publishedAt || 0,
-    ).getTime();
-    const rightTime = new Date(
-      right.finishedAt || right.publishedAt || 0,
-    ).getTime();
+    const leftTime = new Date(left.finishedAt || left.publishedAt || 0).getTime();
+    const rightTime = new Date(right.finishedAt || right.publishedAt || 0).getTime();
     return rightTime - leftTime;
   });
 }
@@ -665,10 +577,8 @@ export function FloodHydrology() {
   const [layers, setLayers] = useState([]);
   const [legends, setLegends] = useState([]);
   const [runs, setRuns] = useState([]);
-  const [selectedModule, setSelectedModule] = useState("event");
   const [selectedRunId, setSelectedRunId] = useState("");
   const [visibleIds, setVisibleIds] = useState(() => new Set());
-  const [noticeOpen, setNoticeOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const abortControllerRef = useRef(null);
@@ -714,15 +624,14 @@ export function FloodHydrology() {
     }
   }, []);
 
-  // Fetch runs filtered by the selected module. Re-fires every time the user
-  // picks a different module so the period dropdown only shows relevant runs.
-  const loadRuns = useCallback(async (module) => {
+  // Fetch runs for trend module once on mount.
+  const loadRuns = useCallback(async () => {
     runsAbortRef.current?.abort();
     const controller = new AbortController();
     runsAbortRef.current = controller;
     try {
       const runResponse = await getFloodRuns(
-        { module, mode: "product", page: 1, limit: 50 },
+        { module: 'trend', mode: "product", page: 1, limit: 50 },
         { signal: controller.signal },
       );
       if (controller.signal.aborted) return;
@@ -747,12 +656,12 @@ export function FloodHydrology() {
   }, [load]);
 
   useEffect(() => {
-    loadRuns(selectedModule);
+    loadRuns();
     return () => {
       runsAbortRef.current?.abort();
       runsAbortRef.current = null;
     };
-  }, [loadRuns, selectedModule]);
+  }, [loadRuns]);
 
   useEffect(() => {
     layersRef.current = layers;
@@ -804,19 +713,12 @@ export function FloodHydrology() {
   }, [visibleIds, layers, legendsByCode]);
 
   const layerCounts = useMemo(() => {
-    const result = Object.fromEntries(MODULES.map(({ code }) => [code, 0]));
-    layers.forEach((layer) => {
-      result[layer.module] = (result[layer.module] || 0) + 1;
-    });
-    return result;
+    return layers.filter((l) => l.module === 'trend').length;
   }, [layers]);
 
-  const selectedModuleInfo =
-    MODULES.find(({ code }) => code === selectedModule) || MODULES[0];
-
   const availableRuns = useMemo(
-    () => buildAvailableRuns(selectedModule, runs, layers, overview),
-    [layers, overview, runs, selectedModule],
+    () => buildAvailableRuns(runs, layers, overview),
+    [layers, overview, runs],
   );
 
   const effectiveRunId = availableRuns.some(
@@ -833,7 +735,7 @@ export function FloodHydrology() {
       layers
         .filter(
           (layer) =>
-            layer.module === selectedModule &&
+            layer.module === 'trend' &&
             normalizeId(layer.analysisRunId) === effectiveRunId &&
             layer.layerName &&
             layer.workspace,
@@ -846,17 +748,17 @@ export function FloodHydrology() {
             (ARTIFACT_PRIORITY[right.code] || 99)
           );
         }),
-    [effectiveRunId, layers, selectedModule],
+    [effectiveRunId, layers],
   );
 
   const selectedMetrics = useMemo(
-    () => getModuleMetrics(selectedModule, selectedRun),
-    [selectedModule, selectedRun],
+    () => getModuleMetrics(selectedRun),
+    [selectedRun],
   );
 
   const selectedPeriods = useMemo(
-    () => getAnalysisPeriods(selectedModule, selectedRun),
-    [selectedModule, selectedRun],
+    () => (selectedRun ? getAnalysisPeriods(selectedRun) : []),
+    [selectedRun],
   );
 
   const visibleSelectedCount = selectedLayers.filter((layer) =>
@@ -870,16 +772,6 @@ export function FloodHydrology() {
     removeFloodArtifacts(visibleArtifacts);
     setVisibleIds(new Set());
   }, [layers, visibleIds]);
-
-  const handleModuleChange = useCallback(
-    (value) => {
-      hideAllFloodLayers();
-      setSelectedModule(value);
-      setSelectedRunId("");
-      setRuns([]);
-    },
-    [hideAllFloodLayers],
-  );
 
   const handleRunChange = useCallback(
     (value) => {
@@ -947,7 +839,7 @@ export function FloodHydrology() {
             <div className="min-w-0">
               <CardTitle className="text-sm">Ngập lụt và thủy văn</CardTitle>
               <CardDescription className="mt-1 whitespace-normal text-[11px] text-(--gradient-surface-panel-muted)">
-                TP Cẩm Phả
+                Phân tích theo năm · Cẩm Phả
               </CardDescription>
             </div>
           </div>
@@ -993,47 +885,11 @@ export function FloodHydrology() {
               <section className="space-y-3" aria-label="Chọn dữ liệu ngập lụt">
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <StepLabel step="1" htmlFor="flood-module-select">
-                      Chọn mô-đun
+                    <StepLabel step="1" htmlFor="flood-period-select">
+                      Chọn năm phân tích
                     </StepLabel>
                     <Badge variant="outline" className="text-[10px]">
-                      {layerCounts[selectedModule] || 0} lớp
-                    </Badge>
-                  </div>
-                  <Select
-                    value={selectedModule}
-                    onValueChange={handleModuleChange}
-                    disabled={loading && !overview}
-                  >
-                    <SelectTrigger
-                      id="flood-module-select"
-                      size="sm"
-                      variant="filled"
-                      className="w-full text-xs"
-                      aria-label="Chọn mô-đun phân tích ngập lụt"
-                    >
-                      <SelectValue placeholder="Chọn mô-đun" />
-                    </SelectTrigger>
-                    <SelectContent position="popper" align="start">
-                      {MODULES.map((module) => (
-                        <SelectItem key={module.code} value={module.code}>
-                          {module.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="pl-7 text-[10px] leading-4 text-muted-foreground">
-                    {selectedModuleInfo.description}
-                  </p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <StepLabel step="2" htmlFor="flood-period-select">
-                      Chọn kỳ xuất hiện
-                    </StepLabel>
-                    <Badge variant="outline" className="text-[10px]">
-                      {availableRuns.length} kỳ
+                      {availableRuns.length} năm
                     </Badge>
                   </div>
                   <Select
@@ -1047,9 +903,9 @@ export function FloodHydrology() {
                       variant="filled"
                       isLoading={loading && availableRuns.length > 0}
                       className="w-full text-xs"
-                      aria-label="Chọn kỳ xuất hiện ngập lụt"
+                      aria-label="Chọn năm phân tích ngập lụt"
                     >
-                      <SelectValue placeholder="Chưa có kỳ dữ liệu" />
+                      <SelectValue placeholder="Chưa có năm phân tích." />
                     </SelectTrigger>
                     <SelectContent
                       position="popper"
@@ -1058,7 +914,7 @@ export function FloodHydrology() {
                     >
                       {availableRuns.map((run, index) => (
                         <SelectItem key={run.id} value={normalizeId(run.id)}>
-                          {runPeriodLabel(selectedModule, run) ||
+                          {runPeriodLabel(run) ||
                             formatDateTime(run.finishedAt || run.publishedAt)}
                           {index === 0 ? " · mới nhất" : ""}
                         </SelectItem>
@@ -1070,29 +926,14 @@ export function FloodHydrology() {
 
               <div
                 role="note"
-                className="rounded-lg border border-info/25 bg-(--info-subtle) text-(--info-subtle-foreground)"
+                className="rounded-lg border border-info/25 bg-(--info-subtle) px-2.5 py-2 text-(--info-subtle-foreground)"
               >
-                <button
-                  type="button"
-                  onClick={() => setNoticeOpen((open) => !open)}
-                  aria-expanded={noticeOpen}
-                  className="flex w-full items-center gap-2 p-2.5 text-left"
-                >
-                  <Info className="size-3.5 shrink-0 text-info" />
-                  <span className="flex-1 text-[11px] font-medium leading-4">
-                    Lưu ý về mô-đun
-                  </span>
-                  <ChevronDown
-                    className={`size-3.5 shrink-0 text-info transition-transform ${
-                      noticeOpen ? "" : "-rotate-90"
-                    }`}
-                  />
-                </button>
-                {noticeOpen ? (
-                  <p className="border-t border-info/25 px-2.5 py-2 text-[11px] leading-4">
-                    {selectedModuleInfo.notice}
+                <div className="flex items-start gap-2">
+                  <Info className="mt-0.5 size-3.5 shrink-0 text-info" />
+                  <p className="text-[11px] leading-4">
+                    Dữ liệu phân tích ngập từ thuật toán VH-only Otsu 3 tầng. Đối chiếu hiện trường trước khi dùng cho quyết định quản lý.
                   </p>
-                ) : null}
+                </div>
               </div>
 
               {selectedRun ? (
@@ -1134,9 +975,7 @@ export function FloodHydrology() {
               ) : (
                 <div className="rounded-lg border border-dashed border-border p-5 text-center text-muted-foreground">
                   <CalendarDays className="mx-auto size-7 opacity-30" />
-                  <p className="mt-2 text-xs">
-                    Chưa có kỳ dữ liệu cho mô-đun này.
-                  </p>
+                  <p className="mt-2 text-xs">Chưa có năm phân tích.</p>
                 </div>
               )}
 
@@ -1146,7 +985,7 @@ export function FloodHydrology() {
                   aria-label="Lớp bản đồ của kỳ đã chọn"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <StepLabel step="3">Chọn lớp bản đồ</StepLabel>
+                    <StepLabel step="2">Chọn lớp bản đồ</StepLabel>
                     {selectedLayers.length ? (
                       <Button
                         type="button"
@@ -1167,22 +1006,17 @@ export function FloodHydrology() {
                   </div>
 
                   {selectedLayers.length ? (
-                    selectedLayers.map((artifact) => (
-                      <LayerRow
-                        key={artifact.id}
-                        artifact={artifact}
-                        legend={legendsByCode.get(artifact.code)}
-                        checked={visibleIds.has(artifact.id)}
-                        onToggle={() => toggleLayer(artifact)}
-                      />
-                    ))
+                    <TrendLayerGroups
+                      layers={selectedLayers}
+                      legendsByCode={legendsByCode}
+                      visibleIds={visibleIds}
+                      onToggle={toggleLayer}
+                    />
                   ) : (
                     <div className="rounded-lg border border-dashed border-border py-6 text-center text-muted-foreground">
                       <BarChart3 className="mx-auto size-8 opacity-30" />
                       <p className="mt-2 px-3 text-xs">
-                        {selectedModule === "impact"
-                          ? "Kỳ này cung cấp số liệu tác động và không phát hành lớp raster công khai."
-                          : "Chưa có lớp bản đồ được công bố cho kỳ này."}
+                        Chưa có lớp bản đồ được công bố cho năm này.
                       </p>
                     </div>
                   )}
@@ -1192,6 +1026,52 @@ export function FloodHydrology() {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function TrendLayerGroups({ layers, legendsByCode, visibleIds, onToggle }) {
+  const ungrouped = [];
+  const grouped = TREND_LAYER_GROUPS.map((group) => ({
+    ...group,
+    items: layers.filter((a) => group.codes.has(a.code)),
+  })).filter((group) => group.items.length > 0);
+
+  // Catch any artifacts not in any group
+  const allGroupedCodes = new Set(TREND_LAYER_GROUPS.flatMap((g) => [...g.codes]));
+  layers.forEach((a) => {
+    if (!allGroupedCodes.has(a.code)) ungrouped.push(a);
+  });
+
+  return (
+    <div className="space-y-3">
+      {grouped.map((group) => (
+        <div key={group.key}>
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {group.label}
+          </p>
+          <div className="space-y-1.5">
+            {group.items.map((artifact) => (
+              <LayerRow
+                key={artifact.id}
+                artifact={artifact}
+                legend={legendsByCode.get(artifact.code)}
+                checked={visibleIds.has(artifact.id)}
+                onToggle={() => onToggle(artifact)}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+      {ungrouped.map((artifact) => (
+        <LayerRow
+          key={artifact.id}
+          artifact={artifact}
+          legend={legendsByCode.get(artifact.code)}
+          checked={visibleIds.has(artifact.id)}
+          onToggle={() => onToggle(artifact)}
+        />
+      ))}
     </div>
   );
 }

@@ -17,6 +17,8 @@ import {
 } from "@/services/mapLayersService";
 import { buildOgcSourceId } from "@/helper/Map/MapHelper";
 
+// ── LayerItem ──────────────────────────────────────────────────────────────
+
 function LayerItem({ layer, onToggle }) {
   return (
     <Tooltip>
@@ -29,7 +31,7 @@ function LayerItem({ layer, onToggle }) {
             id={`ogc-layer-${layer.id}`}
             checked={layer.enabled}
             onCheckedChange={() => onToggle(layer.id)}
-            onClick={(event) => event.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
             aria-label={`${layer.enabled ? "Tắt" : "Bật"} lớp ${layer.name}`}
             className="data-[state=checked]:border-primary data-[state=checked]:bg-primary"
           />
@@ -51,26 +53,20 @@ function formatCategoryName(category) {
   if (!category) return "Khác";
   return String(category)
     .replace(/[_-]+/g, " ")
-    .replace(/\b\w/g, (character) => character.toUpperCase());
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function CollapsibleSection({
-  title,
-  activeCount,
-  count,
-  children,
-  onEnableAll,
-  onDisableAll,
-  defaultOpen = false,
-}) {
-  const [open, setOpen] = useState(defaultOpen);
+// ── CollapsibleSection ─────────────────────────────────────────────────────
+
+function CollapsibleSection({ title, activeCount, count, children, onEnableAll, onDisableAll }) {
+  const [open, setOpen] = useState(false);
 
   return (
     <section className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm">
       <div className="flex items-center">
         <button
           type="button"
-          onClick={() => setOpen((value) => !value)}
+          onClick={() => setOpen((v) => !v)}
           className="group flex min-w-0 flex-1 items-center gap-2.5 px-3 py-3 text-left text-sm font-semibold text-foreground transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
           aria-expanded={open}
         >
@@ -93,12 +89,8 @@ function CollapsibleSection({
                   type="button"
                   variant="ghost"
                   size="icon-xs"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onEnableAll();
-                  }}
+                  onClick={(e) => { e.stopPropagation(); onEnableAll(); }}
                   disabled={activeCount === count}
-                  aria-label={`Bật tất cả lớp trong nhóm ${title}`}
                 >
                   <Eye className="h-4 w-4" />
                 </Button>
@@ -106,7 +98,6 @@ function CollapsibleSection({
             </TooltipTrigger>
             <TooltipContent>Bật tất cả lớp trong nhóm</TooltipContent>
           </Tooltip>
-
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="inline-flex">
@@ -114,12 +105,8 @@ function CollapsibleSection({
                   type="button"
                   variant="ghost"
                   size="icon-xs"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onDisableAll();
-                  }}
+                  onClick={(e) => { e.stopPropagation(); onDisableAll(); }}
                   disabled={activeCount === 0}
-                  aria-label={`Tắt tất cả lớp trong nhóm ${title}`}
                 >
                   <EyeOff className="h-4 w-4" />
                 </Button>
@@ -130,18 +117,18 @@ function CollapsibleSection({
         </div>
       </div>
 
-      {open ? (
+      {open && (
         <div className="border-t border-border/60 bg-muted/15 p-2">
           {children}
         </div>
-      ) : null}
+      )}
     </section>
   );
 }
 
 function CategoryGroup({ name, layers, onToggle, onSetEnabled }) {
-  const activeCount = layers.filter((layer) => layer.enabled).length;
-  const layerIds = layers.map((layer) => layer.id);
+  const activeCount = layers.filter((l) => l.enabled).length;
+  const layerIds = layers.map((l) => l.id);
 
   return (
     <CollapsibleSection
@@ -160,6 +147,8 @@ function CategoryGroup({ name, layers, onToggle, onSetEnabled }) {
   );
 }
 
+// ── LayerSelection ────────────────────────────────────────────────────────────
+
 export function LayerSelection() {
   const {
     ogcLayers,
@@ -175,7 +164,7 @@ export function LayerSelection() {
     () =>
       extractWebMapItems(layersQuery.data)
         .map(normalizeWebMapLayer)
-        .filter((layer) => layer.geoserver_layer),
+        .filter((l) => l.geoserver_layer),
     [layersQuery.data],
   );
 
@@ -183,14 +172,19 @@ export function LayerSelection() {
     setOgcLayerState(mapLayers);
   }, [mapLayers, setOgcLayerState]);
 
+  // Sync regular layers vào ogcLayersData — giữ nguyên các flood key riêng biệt
   useEffect(() => {
-    const ogcLayersData = Object.fromEntries(
-      ogcLayers
-        .filter((layer) => layer.enabled)
-        .map((layer) => [buildOgcSourceId(layer), layer]),
+    const regularData = Object.fromEntries(
+      ogcLayers.filter((l) => l.enabled).map((l) => [buildOgcSourceId(l), l]),
     );
-
-    useMapStore.setState({ ogcLayersData });
+    useMapStore.setState((state) => {
+      const floodEntries = Object.fromEntries(
+        Object.entries(state.ogcLayersData).filter(([k]) =>
+          k.startsWith("flood-scenario-"),
+        ),
+      );
+      return { ogcLayersData: { ...regularData, ...floodEntries } };
+    });
   }, [ogcLayers]);
 
   const handleToggleLayer = useCallback(
@@ -203,20 +197,14 @@ export function LayerSelection() {
     [setOgcLayersEnabled],
   );
 
-  const handleEnableAll = useCallback(() => {
-    enableAllOgcLayers();
-  }, [enableAllOgcLayers]);
+  const handleEnableAll = useCallback(() => enableAllOgcLayers(), [enableAllOgcLayers]);
 
-  const handleDisableAll = useCallback(() => {
-    useMapStore.getState().clearAllOgcLayersData();
-    resetOgcLayers();
-  }, [resetOgcLayers]);
+  const handleDisableAll = useCallback(() => resetOgcLayers(), [resetOgcLayers]);
 
   const BLOCKED_CATEGORIES = ["flood", "forest"];
 
   const layersByCategory = useMemo(() => {
     const groups = new Map();
-
     ogcLayers.forEach((layer) => {
       const key = layer.category || "uncategorized";
       if (BLOCKED_CATEGORIES.includes(key)) return;
@@ -231,7 +219,6 @@ export function LayerSelection() {
       group.layers.push(layer);
       groups.set(key, group);
     });
-
     return Array.from(groups.values());
   }, [ogcLayers]);
 
@@ -315,7 +302,7 @@ export function LayerSelection() {
       </div>
 
       <div
-        className="max-h-[55vh] space-y-4 overflow-y-auto overscroll-contain pr-1 [scrollbar-gutter:stable]"
+        className="max-h-[50vh] space-y-4 overflow-y-auto overscroll-contain pr-1 [scrollbar-gutter:stable]"
         aria-label="Danh sách nhóm lớp dữ liệu"
       >
         {layersByCategory.map((group) => (

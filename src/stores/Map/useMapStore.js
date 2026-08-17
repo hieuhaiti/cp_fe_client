@@ -9,6 +9,8 @@ export const useMapStore = create((set, get) => ({
   // Dữ liệu category layers đang hiển thị trên map: { [sourceId]: geojson }
   categoryLayersData: {},
   ogcLayersData: {},
+  // Kịch bản ngập đang active: { id, sourceId, layer } | null
+  activeFloodScenario: null,
   mapLegends: {},
   // Cache WFS GeoJSON dùng chung cho single/split map. Promise đang chạy được
   // dedupe ở helper WFS; store chỉ giữ dữ liệu đã tải để có thể tái sử dụng.
@@ -100,6 +102,9 @@ export const useMapStore = create((set, get) => ({
   clearAllOgcLayersData: () => {
     set({ ogcLayersData: {} });
   },
+
+  setActiveFloodScenario: (scenario) => set({ activeFloodScenario: scenario }),
+  clearActiveFloodScenario: () => set({ activeFloodScenario: null }),
 
   setSplitMode: (isSplitMode) => {
     set({ isSplitMode });

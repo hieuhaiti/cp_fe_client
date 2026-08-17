@@ -57,7 +57,7 @@ import { useMapStore } from "@/stores/Map/useMapStore";
  *
  * Toàn TP Cẩm Phả tính chung một polygon (không còn tách theo huyện). Sidebar
  * chỉ toggle 1 overlay raster WMS, hiển thị KPI diện tích rừng/mỏ + bảng chú
- * giải 12 lớp từ `provinceSummary.legend` do server trả về.
+ * giải 8 lớp từ `provinceSummary.legend` do server trả về.
  */
 
 const FOREST_SOURCE_PREFIX = "forest-class-source-";

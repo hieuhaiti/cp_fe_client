@@ -1,6 +1,7 @@
 import { SearchEngine } from "./SearchEngine";
 import { StyleChange } from "./StyleChange";
 import { LayerSelection } from "./LayerSelection";
+import FloodScenarioPanel from "./FloodScenarioPanel";
 
 export function DataLayers() {
   return (
@@ -8,6 +9,13 @@ export function DataLayers() {
       {/* Search Section */}
       <section className="min-w-0 shrink-0">
         <SearchEngine />
+      </section>
+
+      <hr className="border-border/80" />
+
+      {/* Kịch bản ngập — độc lập, không chịu sự điều khiển của LayerSelection */}
+      <section className="min-w-0 shrink-0">
+        <FloodScenarioPanel />
       </section>
 
       <hr className="border-border/80" />

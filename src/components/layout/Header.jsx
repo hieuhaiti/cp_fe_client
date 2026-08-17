@@ -46,6 +46,14 @@ const categories = [
     fullname: "Bản đồ PDF",
     slug: "pdf-maps",
   },
+  {
+    id: 5,
+    name: "Thực địa",
+    shortname: "Thực địa",
+    fullname: "Thực địa",
+    slug: "real-terrain",
+    externalUrl: "https://campha.tourismpj.pro.vn/thucdia/",
+  },
 ];
 
 export default function Header() {
@@ -85,7 +93,13 @@ export default function Header() {
   };
 
   const navigateCategory = (category) => {
-    const slugs = Array.isArray(category.slug) ? category.slug : [category.slug];
+    if (category.externalUrl) {
+      window.open(category.externalUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    const slugs = Array.isArray(category.slug)
+      ? category.slug
+      : [category.slug];
     const navigateSlug = slugs[0] || "";
     navigate(`/${navigateSlug}`);
     setCategory(category.id);

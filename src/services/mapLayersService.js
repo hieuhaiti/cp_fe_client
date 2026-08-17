@@ -122,6 +122,21 @@ export function getMapLayerLegend(layerId) {
   return fetcher(`${LAYERS_PATH}/${encodeURIComponent(layerId)}/legend`);
 }
 
+const FLOOD_PATH = "/flood";
+
+/** GET /flood/scenarios?activeOnly=true */
+export function getFloodScenarios(params = {}) {
+  return fetcher(withQuery(`${FLOOD_PATH}/scenarios`, { activeOnly: true, limit: 100, ...params }));
+}
+
+export function useGetFloodScenariosQuery(options = {}) {
+  return useApiQuery(
+    ["flood", "scenarios", "public"],
+    withQuery(`${FLOOD_PATH}/scenarios`, { activeOnly: true, limit: 100 }),
+    { staleTime: 5 * 60 * 1000, ...options },
+  );
+}
+
 /** GET /web-map/terrain */
 export function getMapTerrain() {
   return fetcher(`${MAP_PATH}/terrain`);
