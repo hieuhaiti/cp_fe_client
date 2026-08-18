@@ -284,7 +284,7 @@ export default function Header() {
                             className="h-auto w-full justify-start px-4 py-2"
                             onClick={() =>
                               openExternalLink(
-                                "/uploads/HDSD_WEBGIS_CAMPHA.docx",
+                                "/uploads/HDSD_WEBGIS_CAMPHA.pdf",
                               )
                             }
                           >
@@ -343,7 +343,7 @@ export default function Header() {
                         size="icon-sm"
                         className="rounded-full"
                         onClick={() =>
-                          openExternalLink("/uploads/HDSD_WEBGIS_CAMPHA.docx")
+                          openExternalLink("/uploads/HDSD_WEBGIS_CAMPHA.pdf")
                         }
                         aria-label="Hướng dẫn sử dụng"
                       >
