@@ -72,7 +72,8 @@ function normalizeLegendItem(item, index) {
   return {
     color: item?.color || item?.fill || item?.hex || "#94a3b8",
     label,
-    sublabel: localizedText(item?.sublabel) || (range && range !== label ? range : ""),
+    sublabel:
+      localizedText(item?.sublabel) || (range && range !== label ? range : ""),
     areaKm2: item?.areaKm2 ?? item?.area_km2 ?? null,
     areaHa: item?.areaHa ?? item?.area_ha ?? item?.ha ?? null,
     percent: item?.percent ?? item?.pct ?? null,
@@ -217,7 +218,10 @@ function LegendGroup({ group, defaultOpen = true }) {
           {group.items.map((item, index) => {
             const area = formatArea(item);
             return (
-              <div key={`${item.color}-${item.label}-${index}`} className="space-y-0.5">
+              <div
+                key={`${item.color}-${item.label}-${index}`}
+                className="space-y-0.5"
+              >
                 <div className="flex items-center gap-2">
                   <span
                     className="size-3 shrink-0 rounded-sm border border-border/60"
@@ -229,10 +233,14 @@ function LegendGroup({ group, defaultOpen = true }) {
                 </div>
                 {item.sublabel || area || item.percent != null ? (
                   <div className="flex min-w-0 items-center gap-1.5 pl-5 text-[10px] text-muted-foreground">
-                    {item.sublabel ? <span className="truncate">{item.sublabel}</span> : null}
+                    {item.sublabel ? (
+                      <span className="truncate">{item.sublabel}</span>
+                    ) : null}
                     {area ? <span className="shrink-0">{area}</span> : null}
                     {item.percent != null ? (
-                      <span className="shrink-0">· {Number(item.percent).toLocaleString("vi-VN")} %</span>
+                      <span className="shrink-0">
+                        · {Number(item.percent).toLocaleString("vi-VN")} %
+                      </span>
                     ) : null}
                   </div>
                 ) : null}
@@ -249,7 +257,9 @@ export function MapLegend() {
   const [collapsed, setCollapsed] = useState(false);
   const satelliteLayers = useSatelliteStore((state) => state.satelliteLayers);
   const isCompareMode = useSatelliteStore((state) => state.isCompareMode);
-  const comparisonImages = useSatelliteStore((state) => state.images.comparison);
+  const comparisonImages = useSatelliteStore(
+    (state) => state.images.comparison,
+  );
   const ogcLayersData = useMapStore((state) => state.ogcLayersData);
   const mapLegends = useMapStore((state) => state.mapLegends);
 
@@ -259,7 +269,9 @@ export function MapLegend() {
       .filter((layer) => layer && layer.visible !== false)
       .filter((layer, index, layers) => {
         if (layer.layerType !== "change") return true;
-        return layers.findIndex((item) => item.layerType === "change") === index;
+        return (
+          layers.findIndex((item) => item.layerType === "change") === index
+        );
       })
       .map(toSatelliteLegendGroup)
       .filter((group) => group.items.length > 0);
@@ -273,7 +285,13 @@ export function MapLegend() {
       .filter(Boolean);
 
     return [...registeredGroups, ...ogcGroups, ...satelliteGroups];
-  }, [comparisonImages, isCompareMode, mapLegends, ogcLayersData, satelliteLayers]);
+  }, [
+    comparisonImages,
+    isCompareMode,
+    mapLegends,
+    ogcLayersData,
+    satelliteLayers,
+  ]);
 
   if (groups.length === 0) return null;
 
@@ -288,7 +306,9 @@ export function MapLegend() {
       >
         <span className="flex items-center gap-2">
           <Map className="text-primary" size={13} />
-          <span className="text-xs font-semibold text-foreground">Chú giải bản đồ</span>
+          <span className="text-xs font-semibold text-foreground">
+            Chú giải bản đồ
+          </span>
           <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-xs text-primary">
             {groups.length}
           </span>

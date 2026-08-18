@@ -52,7 +52,9 @@ export const buildMapProxyWmsTileUrl = async (layer) => {
   }
   // Keep the Mapbox bbox token literal. URLSearchParams would encode the
   // braces, preventing Mapbox GL from replacing it with the tile bounds.
-  return `${buildEndpoint(layerId, "wms", params)}&bbox={bbox-epsg-3857}`;
+  const endpoint = buildEndpoint(layerId, "wms", params);
+  if (!endpoint) return "";
+  return `${endpoint}&bbox={bbox-epsg-3857}`;
 };
 
 /** The server only exposes GetMap over WMS. Feature inspection is WFS-only. */

@@ -237,15 +237,17 @@ function getAnalysisPeriods(run) {
 
   const isMonitoring = metadata.monitorStart != null;
   const monitorStart = metadata.monitorStart;
-  const monitorEnd   = metadata.monitorEnd;
-  const dryWindow    = metadata.dryWindow;
+  const monitorEnd = metadata.monitorEnd;
+  const dryWindow = metadata.dryWindow;
 
   const periods = [];
 
   if (isMonitoring && monitorStart) {
     periods.push({
       label: "Kỳ giám sát",
-      value: monitorEnd ? `${formatDateShort(monitorStart)} – ${formatDateShort(monitorEnd)}` : formatDateShort(monitorStart),
+      value: monitorEnd
+        ? `${formatDateShort(monitorStart)} – ${formatDateShort(monitorEnd)}`
+        : formatDateShort(monitorStart),
     });
     if (dryWindow?.start) {
       periods.push({
@@ -254,7 +256,10 @@ function getAnalysisPeriods(run) {
       });
     }
   } else if (metadata.analysisYear != null) {
-    periods.push({ label: "Năm phân tích", value: String(metadata.analysisYear) });
+    periods.push({
+      label: "Năm phân tích",
+      value: String(metadata.analysisYear),
+    });
   }
 
   const analysisPeriods = metadata.analysisPeriods || [];
@@ -280,7 +285,7 @@ function getAnalysisPeriods(run) {
     const requested = metadata.orbitRequested;
     const orbitText =
       requested === "AUTO" && selected
-        ? `${selected} (AUTO đã chọn)`
+        ? `${selected} (hệ thống tự chọn)`
         : selected || requested;
     if (orbitText)
       periods.push({ label: "Quỹ đạo Sentinel-1", value: orbitText });
@@ -294,7 +299,9 @@ function getAnalysisPeriods(run) {
 function runPeriodLabel(run) {
   const meta = runMetadata(run);
   if (meta.monitorStart) {
-    return meta.monitorEnd ? `${meta.monitorStart} – ${meta.monitorEnd}` : meta.monitorStart;
+    return meta.monitorEnd
+      ? `${meta.monitorStart} – ${meta.monitorEnd}`
+      : meta.monitorStart;
   }
   return String(meta.analysisYear || run?.id);
 }
@@ -304,17 +311,6 @@ function getModuleMetrics(run) {
   const isMonitoring = metadata.monitorStart != null;
 
   return [
-    isMonitoring
-      ? {
-          label: "Kỳ giám sát",
-          value: metadata.monitorEnd
-            ? `${metadata.monitorStart} – ${metadata.monitorEnd}`
-            : metadata.monitorStart ?? null,
-        }
-      : {
-          label: "Năm phân tích",
-          value: metadata.analysisYear != null ? String(metadata.analysisYear) : null,
-        },
     {
       label: "Diện tích ngập",
       value: formatMetric(metadata.areaStats?.floodExtentAreaHa, "ha"),
@@ -455,7 +451,7 @@ function MetricGrid({ metrics }) {
       {metrics.map((metric) => (
         <div
           key={metric.label}
-          className="min-w-0 rounded-lg border border-info/20 bg-(--info-subtle) p-2.5"
+          className={`min-w-0 rounded-lg border border-info/20 bg-(--info-subtle) p-2.5${metric.colSpan === 2 ? " col-span-2" : ""}`}
         >
           <p className="text-[10px] leading-4 text-muted-foreground">
             {metric.label}
@@ -697,40 +693,6 @@ export function FloodHydrology() {
   );
 
   // Sync visible flood artifact legends into the float legend panel.
-  useEffect(() => {
-    const { setMapLegend, removeMapLegend } = useMapStore.getState();
-    const registered = [];
-
-    visibleIds.forEach((artifactId) => {
-      const artifact = layers.find((layer) => layer.id === artifactId);
-      if (!artifact) return;
-      const legend = legendsByCode.get(artifact.code);
-      const entries = Array.isArray(legend?.entries) ? legend.entries : [];
-      if (!entries.length) return;
-
-      const legendId = `flood-artifact-${artifactId}`;
-      const label =
-        artifact.metadata?.label?.vi || legend?.label?.vi || artifact.code;
-      setMapLegend(legendId, {
-        title: label,
-        subtitle: "Ngập lụt và thủy văn",
-        items: entries.map((entry) => ({
-          color: entry.color || "#94a3b8",
-          label:
-            entry.label?.vi || entry.label?.en || String(entry.value ?? ""),
-          sublabel:
-            typeof entry.range === "string"
-              ? entry.range
-              : entry.range?.vi || entry.range?.en || null,
-        })),
-      });
-      registered.push(legendId);
-    });
-
-    return () => {
-      registered.forEach((id) => removeMapLegend(id));
-    };
-  }, [visibleIds, layers, legendsByCode]);
 
   const layerCounts = useMemo(() => {
     return layers.filter((l) => l.module === "trend").length;
@@ -1018,13 +980,13 @@ export function FloodHydrology() {
                           ) : (
                             <div
                               key={period.label}
-                              className="flex items-center justify-between gap-2 text-[11px]"
+                              className="flex flex-col gap-0.5 text-[11px]"
                             >
                               <span className="flex items-center gap-1.5 text-muted-foreground">
                                 <CalendarDays className="size-3 shrink-0 text-info" />
                                 {period.label}
                               </span>
-                              <span className="font-medium text-(--info-subtle-foreground)">
+                              <span className="pl-4 font-medium text-(--info-subtle-foreground)">
                                 {period.value}
                               </span>
                             </div>

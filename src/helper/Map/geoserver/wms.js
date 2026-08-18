@@ -22,7 +22,7 @@ export const buildWmsTileUrl = (layer) => {
     version: GEOSERVER_DEFAULT_VERSIONS[GEOSERVER_SERVICE_TYPES.WMS],
     request: "GetMap",
     layers: ogcLayerName,
-    styles: "",
+    styles: layer?.style_name ?? "",
     width: "256",
     height: "256",
     crs: "EPSG:3857",
