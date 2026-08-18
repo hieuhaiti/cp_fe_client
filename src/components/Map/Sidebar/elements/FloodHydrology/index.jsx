@@ -526,9 +526,6 @@ function LayerRow({ artifact, legend, checked, onToggle }) {
             <span className="text-xs font-semibold text-foreground">
               {label}
             </span>
-            <Badge variant={isQa ? "soft-warning" : "soft-info"}>
-              {isQa ? "Kiểm định" : "Sản phẩm"}
-            </Badge>
             {resolution ? (
               <span className="text-[10px] text-muted-foreground">
                 {resolution}
@@ -560,7 +557,7 @@ function LayerRow({ artifact, legend, checked, onToggle }) {
               <span>Hiển thị mô tả</span>
             </button>
           )}
-          <LegendPreview legend={legend} />
+          {/* <LegendPreview legend={legend} /> */}
         </span>
         {checked ? (
           <Eye className="size-3.5 text-info" />

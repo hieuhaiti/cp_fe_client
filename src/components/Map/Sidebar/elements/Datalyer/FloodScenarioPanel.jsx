@@ -65,7 +65,9 @@ function CurrentConditionsBar({ scenario }) {
           <span className="text-muted-foreground">Lượng mưa: </span>
           <span className="font-semibold text-foreground">{rainfall}</span>
           <span className="ml-1 text-muted-foreground">
-            ({SOURCE_LABEL[scenario.rainfall_source] ?? scenario.rainfall_source})
+            (
+            {SOURCE_LABEL[scenario.rainfall_source] ?? scenario.rainfall_source}
+            )
           </span>
         </span>
       )}
@@ -135,7 +137,9 @@ function ScenarioItem({ scenario, selected, onToggle }) {
           <div className="space-y-0.5 text-xs">
             <div className="font-semibold">{scenario.name_vi}</div>
             {scenario.layer?.nameVi && (
-              <div className="text-muted-foreground">{scenario.layer.nameVi}</div>
+              <div className="text-muted-foreground">
+                {scenario.layer.nameVi}
+              </div>
             )}
           </div>
         )}
@@ -231,7 +235,13 @@ export default function FloodScenarioPanel() {
       const sourceId = makeSourceId(scenario.id);
       // Ghi ngay vào store (useEffect sẽ sync lại)
       useMapStore.getState().setOgcLayerData(sourceId, normalizedLayer);
-      useMapStore.getState().setActiveFloodScenario({ id: scenario.id, sourceId, layer: normalizedLayer });
+      useMapStore
+        .getState()
+        .setActiveFloodScenario({
+          id: scenario.id,
+          sourceId,
+          layer: normalizedLayer,
+        });
 
       setActiveScenarioLocal({
         id: scenario.id,
@@ -246,11 +256,14 @@ export default function FloodScenarioPanel() {
   // Auto-activate: find is_active scenarios with a layer, pick the one with highest min_rainfall
   const autoActivatedRef = useRef(false);
   useEffect(() => {
-    if (autoActivatedRef.current || activeScenario || scenarios.length === 0) return;
+    if (autoActivatedRef.current || activeScenario || scenarios.length === 0)
+      return;
     const candidates = scenarios.filter((s) => s.is_active && s.layer != null);
     if (candidates.length === 0) return;
     const best = candidates.reduce((prev, cur) =>
-      parseFloat(cur.min_rainfall ?? 0) > parseFloat(prev.min_rainfall ?? 0) ? cur : prev,
+      parseFloat(cur.min_rainfall ?? 0) > parseFloat(prev.min_rainfall ?? 0)
+        ? cur
+        : prev,
     );
     autoActivatedRef.current = true;
     handleToggle(best);
@@ -268,7 +281,7 @@ export default function FloodScenarioPanel() {
   return (
     <div className="space-y-3">
       <h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
-        <Layers className="h-5 w-5" />
+        <Waves className="h-5 w-5" />
         Kịch bản ngập
       </h2>
 
@@ -309,7 +322,10 @@ export default function FloodScenarioPanel() {
                       type="button"
                       variant="ghost"
                       size="icon-xs"
-                      onClick={(e) => { e.stopPropagation(); handleDeactivate(); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeactivate();
+                      }}
                       aria-label="Tắt kịch bản ngập"
                     >
                       <EyeOff className="h-4 w-4" />

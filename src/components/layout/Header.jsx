@@ -40,6 +40,13 @@ const categories = [
     slug: "news",
   },
   {
+    id: 3,
+    name: "Tài liệu",
+    shortname: "Tài liệu",
+    fullname: "Tài liệu",
+    slug: "documents",
+  },
+  {
     id: 4,
     name: "Bản đồ PDF",
     shortname: "Bản đồ PDF",

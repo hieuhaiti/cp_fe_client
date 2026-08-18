@@ -14,6 +14,10 @@ const PdfMapsPage = lazy(() => import("@/pages/PdfMaps/PdfMapsPage"));
 const PdfMapDetailPage = lazy(
   () => import("@/pages/PdfMaps/PdfMapDetailPage"),
 );
+const DocumentsPage = lazy(() => import("@/pages/Documents/DocumentsPage"));
+const DocumentDetailPage = lazy(
+  () => import("@/pages/Documents/DocumentDetailPage"),
+);
 const MyFeedbackPage = lazy(() => import("@/pages/Feedback/MyFeedbackPage"));
 const Profile = lazy(() => import("@/pages/Profile"));
 const Policy = lazy(() => import("@/pages/Policy"));
@@ -72,6 +76,8 @@ export default function App() {
           <Route path="/news/:slugOrId" element={<NewsDetailPage />} />
           <Route path="/pdf-maps" element={<PdfMapsPage />} />
           <Route path="/pdf-maps/:id" element={<PdfMapDetailPage />} />
+          <Route path="/documents" element={<DocumentsPage />} />
+          <Route path="/documents/:id" element={<DocumentDetailPage />} />
           <Route path="/feedback/mine" element={<MyFeedbackPage />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/policy" element={<Policy />} />
