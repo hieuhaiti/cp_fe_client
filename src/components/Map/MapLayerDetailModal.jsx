@@ -41,6 +41,17 @@ const HIDDEN_PROPERTY_KEYS = new Set([
   "bbox",
   "layer_code",
   "geoserver_layer",
+  "geoserver_store",
+  "geoserver_url",
+  "workspace",
+  "coverage_key",
+  "srid",
+  "epsg_code",
+  "slug",
+  "layer_kind",
+  "source_format",
+  "file_object_id",
+  "cleanup_status",
 ]);
 
 const IMAGE_PROPERTY_KEYS = new Set([

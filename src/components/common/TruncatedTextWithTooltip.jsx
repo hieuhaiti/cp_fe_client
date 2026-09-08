@@ -10,6 +10,7 @@ export default function TruncatedTextWithTooltip({
   // eslint-disable-next-line no-unused-vars
   as: Component = "span",
   text,
+  children,
   className,
   ...props
 }) {
@@ -31,13 +32,24 @@ export default function TruncatedTextWithTooltip({
     updateTruncateState();
     const rafId = window.requestAnimationFrame(updateTruncateState);
 
+    let resizeObserver = null;
+    if (typeof ResizeObserver !== "undefined" && textRef.current) {
+      resizeObserver = new ResizeObserver(() => {
+        updateTruncateState();
+      });
+      resizeObserver.observe(textRef.current);
+    }
+
     window.addEventListener("resize", updateTruncateState);
 
     return () => {
       window.cancelAnimationFrame(rafId);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
       window.removeEventListener("resize", updateTruncateState);
     };
-  }, [text]);
+  }, [text, children]);
 
   const content = (
     <Component
@@ -45,7 +57,7 @@ export default function TruncatedTextWithTooltip({
       className={cn("line-clamp-1", className)}
       {...props}
     >
-      {text}
+      {children ?? text}
     </Component>
   );
 

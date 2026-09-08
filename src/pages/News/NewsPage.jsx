@@ -136,7 +136,7 @@ export default function NewsPage() {
           <div className="mb-8 flex flex-col gap-3 rounded-2xl border border-border bg-card/90 p-3 shadow-sm backdrop-blur md:flex-row md:p-4">
             {/* Search */}
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-(--text-tertiary)" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 z-10 h-4 w-4 text-(--text-tertiary)" />
               <Input
                 type="text"
                 placeholder="Tìm kiếm tin tức..."

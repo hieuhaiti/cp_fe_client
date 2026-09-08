@@ -57,6 +57,7 @@ const explodeMultiFeatures = (features) => {
 };
 
 export const fetchWfsGeoJson = async (layer, options) => {
+  const signal = options?.signal;
   const normalizedOptions = normalizeWfsOptions(options);
   const cacheKey = buildWfsCacheKey(layer, normalizedOptions);
   const mapStore = useMapStore.getState();
@@ -66,8 +67,10 @@ export const fetchWfsGeoJson = async (layer, options) => {
     return cached.data;
   }
 
-  const pendingRequest = pendingWfsRequests.get(cacheKey);
-  if (pendingRequest) return pendingRequest;
+  if (!signal) {
+    const pendingRequest = pendingWfsRequests.get(cacheKey);
+    if (pendingRequest) return pendingRequest;
+  }
 
   const request = (async () => {
     const url = await buildWfsFeatureUrl(layer, normalizedOptions);
@@ -75,7 +78,7 @@ export const fetchWfsGeoJson = async (layer, options) => {
       return { type: "FeatureCollection", features: [] };
     }
 
-    const response = await fetch(url);
+    const response = await fetch(url, signal ? { signal } : undefined);
     if (!response.ok) {
       throw new Error(`GeoServer WFS ${response.status}`);
     }
@@ -97,10 +100,14 @@ export const fetchWfsGeoJson = async (layer, options) => {
     return geojson;
   })();
 
-  pendingWfsRequests.set(cacheKey, request);
+  if (!signal) {
+    pendingWfsRequests.set(cacheKey, request);
+  }
   try {
     return await request;
   } finally {
-    pendingWfsRequests.delete(cacheKey);
+    if (!signal) {
+      pendingWfsRequests.delete(cacheKey);
+    }
   }
 };

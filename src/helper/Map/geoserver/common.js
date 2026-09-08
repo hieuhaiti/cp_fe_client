@@ -81,6 +81,12 @@ export const buildOgcPointLayerIds = (sourceId) => ({
   point: `ogc-${sourceId}-point`,
 });
 
+export const buildOgcVectorLayerIds = (sourceId) => ({
+  fill: `ogc-${sourceId}-fill`,
+  outline: `ogc-${sourceId}-outline`,
+  line: `ogc-${sourceId}-line`,
+});
+
 export const getOgcGeometryPriority = (geometryType) => {
   const type = String(geometryType || "").toLowerCase();
   if (type.includes("raster")) return GEOSERVER_LAYER_ORDER_PRIORITY.RASTER;
@@ -91,6 +97,12 @@ export const getOgcGeometryPriority = (geometryType) => {
 
 export const isOgcPointGeometry = (geometryType) =>
   String(geometryType || "").toLowerCase().includes("point");
+
+export const isOgcPolygonGeometry = (geometryType) =>
+  String(geometryType || "").toLowerCase().includes("poly");
+
+export const isOgcLineGeometry = (geometryType) =>
+  String(geometryType || "").toLowerCase().includes("line");
 
 export const lngLatToWebMercator = ({ lng, lat }) => {
   const x = (lng * 20037508.34) / 180;

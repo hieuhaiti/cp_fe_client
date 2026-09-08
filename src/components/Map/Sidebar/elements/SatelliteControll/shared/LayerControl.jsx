@@ -86,7 +86,7 @@ const detectRasterExtension = async (blob) => {
 
   if (isZip) return "zip";
   if (isLittleEndianTiff || isBigEndianTiff) return "tif";
-  throw new Error("Server không trả về tệp GeoTIFF hoặc ZIP hợp lệ.");
+  throw new Error("Không tải được tệp. Vui lòng thử lại.");
 };
 /**
  * Shared satellite layer control card.
@@ -226,7 +226,7 @@ function LayerControl({
                 <Button
                   variant={hasRasterDownload ? "soft-primary" : "outline"}
                   size="icon-xs"
-                  aria-label="Tải ảnh raster"
+                  aria-label="Tải ảnh"
                   onClick={() => {
                     if (!hasRasterDownload) return;
                     setDownloadType("raster");
@@ -244,7 +244,7 @@ function LayerControl({
               </TooltipTrigger>
               <TooltipContent className="text-xs">
                 {hasRasterDownload
-                  ? "Tải xuống ảnh raster"
+                  ? "Tải xuống ảnh"
                   : "Không có liên kết tải về"}
               </TooltipContent>
             </Tooltip>
@@ -255,7 +255,7 @@ function LayerControl({
                 <Button
                   variant={hasVectorDownload ? "soft-info" : "outline"}
                   size="icon-xs"
-                  aria-label="Tải dữ liệu vector"
+                  aria-label="Tải dữ liệu đường nét"
                   onClick={() => {
                     if (!hasVectorDownload) return;
                     setDownloadType("vector");
@@ -273,7 +273,7 @@ function LayerControl({
               </TooltipTrigger>
               <TooltipContent className="text-xs">
                 {hasVectorDownload
-                  ? "Tải xuống file GEOJSON (Vector)"
+                  ? "Tải dữ liệu đường nét"
                   : "Không có liên kết tải về"}
               </TooltipContent>
             </Tooltip>
@@ -294,12 +294,12 @@ function LayerControl({
                       className="text-warning shrink-0"
                     />
                     Xác nhận tải xuống{" "}
-                    {downloadType === "vector" ? "vector" : "raster"}
+                    {downloadType === "vector" ? "dữ liệu đường nét" : "ảnh"}
                   </DialogTitle>
                   <DialogDescription className="text-sm text-muted-foreground">
                     {downloadType === "vector"
-                      ? "Lưu ý: File vector sẽ được cắt theo vùng nghiên cứu — buffer 20km quanh biên giới."
-                      : "Ảnh raster được cắt theo đúng ranh giới RG Cẩm Phả; phần nằm ngoài ranh giới là NoData (GeoTIFF vẫn có khung bao chữ nhật theo chuẩn raster). Ảnh sử dụng độ phân giải được cấu hình trên server và nên mở bằng QGIS hoặc ArcGIS."}
+                      ? "Dữ liệu tải xuống được giới hạn trong khu vực nghiên cứu."
+                      : "Ảnh tải xuống được giới hạn theo ranh giới Cẩm Phả. Phần bên ngoài ranh giới không có dữ liệu."}
                   </DialogDescription>
                 </DialogHeader>
                 {downloadError && (
@@ -327,12 +327,12 @@ function LayerControl({
                         setIsDownloading(true);
                         setDownloadError("");
                         if (downloadType === "vector") {
-                          throw new Error("Vector download is unavailable");
+                          throw new Error("Chưa thể tải dữ liệu đường nét.");
                         }
 
                         const res = await fetch(rasterUrl);
                         if (!res.ok) {
-                          throw new Error(`Server trả lỗi HTTP ${res.status}.`);
+                          throw new Error(`Không thể tải tệp (mã lỗi ${res.status}).`);
                         }
                         const blob = await res.blob();
                         if (!blob.size) {
@@ -355,7 +355,7 @@ function LayerControl({
                         downloaded = true;
                       } catch (err) {
                         setDownloadError(
-                          err?.message || "Không thể tải ảnh raster. Vui lòng thử lại.",
+                          err?.message || "Không thể tải ảnh. Vui lòng thử lại.",
                         );
                       } finally {
                         setIsDownloading(false);

@@ -6,3 +6,5 @@ export * from "./wmts";
 export * from "./tms";
 export * from "./wmsc";
 export * from "./mapProxy";
+export * from "./timeSeries";
+export * from "./style";

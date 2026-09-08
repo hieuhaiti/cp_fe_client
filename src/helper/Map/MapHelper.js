@@ -8,15 +8,26 @@ import MapboxDraw from "@mapbox/mapbox-gl-draw";
 import { praseLink } from "@/lib/utils";
 import {
   buildOgcPointLayerIds,
+  buildOgcVectorLayerIds,
   buildOgcRasterLayerId,
   buildOgcSourceId as buildGeoServerSourceId,
   buildMapProxyWmsFeatureInfoUrl,
   buildMapProxyWmsTileUrl,
+  buildTimeSeriesSourceId,
+  buildTimeSeriesLayerId,
+  buildTimeSeriesTileUrl,
+  formatTimeLabel,
+  addOrUpdateTimeSeriesLayer,
+  removeTimeSeriesLayerFromMap,
   buildWmsTileUrl,
   fetchWfsGeoJson,
   getOgcGeometryPriority,
   getOgcLayerName,
   isOgcPointGeometry,
+  isOgcPolygonGeometry,
+  isOgcLineGeometry,
+  hasCustomVectorStyle,
+  toMapboxStyle,
 } from "@/helper/Map/geoserver";
 
 // Helper function to calculate bounds from coordinates
@@ -1380,7 +1391,14 @@ export const buildOgcSourceId = (layer) =>
 
 export const buildOgcLayerId = (sourceId) => buildOgcRasterLayerId(sourceId);
 
-export { buildOgcPointLayerIds, isOgcPointGeometry };
+export {
+  buildOgcPointLayerIds,
+  buildOgcVectorLayerIds,
+  isOgcPointGeometry,
+  isOgcPolygonGeometry,
+  isOgcLineGeometry,
+  hasCustomVectorStyle,
+};
 
 export const buildOgcWmsTileUrl = async (layer) => {
   const proxyUrl = await buildMapProxyWmsTileUrl(layer);
@@ -1441,6 +1459,7 @@ const addOrUpdateGeoServerPointLayer = async (
   sourceId,
   layer,
   visible = true,
+  options = {},
 ) => {
   const ogcLayerName = getOgcLayerName(layer);
   if (!map || !sourceId || !ogcLayerName) return;
@@ -1449,7 +1468,7 @@ const addOrUpdateGeoServerPointLayer = async (
   const ids = buildOgcPointLayerIds(sourceId);
 
   try {
-    const geojson = await fetchWfsGeoJson(layer);
+    const geojson = await fetchWfsGeoJson(layer, options);
     if (!(await waitForMapStyle(map))) return;
 
     const existingSource = map.getSource(sourceId);
@@ -1462,6 +1481,12 @@ const addOrUpdateGeoServerPointLayer = async (
         ...GEOSERVER_POINT_CLUSTER_OPTIONS,
       });
     }
+
+    const { pointPaint } = toMapboxStyle(layer?.default_style, "point", layer);
+    const mergedPointPaint = {
+      ...GEOSERVER_POINT_PAINT.point,
+      ...(pointPaint || {}),
+    };
 
     const beforeId = getOgcLayerBeforeId(map, layer?.geometry_type, ids.cluster);
     const metadata = {
@@ -1540,16 +1565,157 @@ const addOrUpdateGeoServerPointLayer = async (
           filter: ["!", ["has", "point_count"]],
           metadata,
           layout: { visibility },
-          paint: GEOSERVER_POINT_PAINT.point,
+          paint: mergedPointPaint,
         },
         beforeId,
       );
     } else {
       map.setLayoutProperty(ids.point, "visibility", visibility);
+      Object.entries(mergedPointPaint).forEach(([prop, val]) => {
+        map.setPaintProperty(ids.point, prop, val);
+      });
       moveLayerIfNeeded(map, ids.point, beforeId);
     }
   } catch (error) {
     console.warn("Loi khi them/cap nhat OGC point layer:", error.message);
+  }
+};
+
+export const addOrUpdateGeoServerVectorLayer = async (
+  map,
+  sourceId,
+  layer,
+  visible = true,
+  options = {},
+) => {
+  const ogcLayerName = getOgcLayerName(layer);
+  if (!map || !sourceId || !ogcLayerName) return;
+
+  const isPolygon = isOgcPolygonGeometry(layer?.geometry_type);
+  const isLine = isOgcLineGeometry(layer?.geometry_type);
+  if (!isPolygon && !isLine) return;
+
+  const visibility = visible ? "visible" : "none";
+  const ids = buildOgcVectorLayerIds(sourceId);
+
+  try {
+    const geojson = await fetchWfsGeoJson(layer, options);
+    if (!(await waitForMapStyle(map))) return;
+
+    const existingSource = map.getSource(sourceId);
+    if (existingSource?.setData) {
+      existingSource.setData(geojson);
+    } else if (!existingSource) {
+      map.addSource(sourceId, {
+        type: "geojson",
+        data: geojson,
+      });
+    }
+
+    const metadata = {
+      ktGeometryPriority: getOgcGeometryPriority(layer?.geometry_type),
+      ktGeometryType: layer?.geometry_type || null,
+      ktLayerCode: layer?.code || null,
+      ktOgcVectorLayer: true,
+      ktManagedOverlay: true,
+    };
+
+    if (isPolygon) {
+      const { fillPaint, outlinePaint } = toMapboxStyle(
+        layer?.default_style,
+        "polygon",
+        layer,
+      );
+      const beforeId = getOgcLayerBeforeId(
+        map,
+        layer?.geometry_type,
+        ids.fill,
+      );
+
+      // Fill sub-layer
+      if (!map.getLayer(ids.fill)) {
+        map.addLayer(
+          {
+            id: ids.fill,
+            type: "fill",
+            source: sourceId,
+            metadata,
+            layout: { visibility },
+            paint: fillPaint,
+          },
+          beforeId,
+        );
+      } else {
+        map.setLayoutProperty(ids.fill, "visibility", visibility);
+        Object.entries(fillPaint || {}).forEach(([prop, val]) => {
+          map.setPaintProperty(ids.fill, prop, val);
+        });
+        moveLayerIfNeeded(map, ids.fill, beforeId);
+      }
+
+      // Outline sub-layer
+      if (!map.getLayer(ids.outline)) {
+        map.addLayer(
+          {
+            id: ids.outline,
+            type: "line",
+            source: sourceId,
+            metadata,
+            layout: { visibility },
+            paint: outlinePaint,
+          },
+          beforeId,
+        );
+      } else {
+        map.setLayoutProperty(ids.outline, "visibility", visibility);
+        Object.entries(outlinePaint || {}).forEach(([prop, val]) => {
+          map.setPaintProperty(ids.outline, prop, val);
+        });
+        moveLayerIfNeeded(map, ids.outline, beforeId);
+      }
+    } else if (isLine) {
+      const { linePaint, lineLayout } = toMapboxStyle(
+        layer?.default_style,
+        "line",
+        layer,
+      );
+      const beforeId = getOgcLayerBeforeId(
+        map,
+        layer?.geometry_type,
+        ids.line,
+      );
+
+      if (!map.getLayer(ids.line)) {
+        map.addLayer(
+          {
+            id: ids.line,
+            type: "line",
+            source: sourceId,
+            metadata,
+            layout: {
+              visibility,
+              ...(lineLayout || {}),
+            },
+            paint: linePaint,
+          },
+          beforeId,
+        );
+      } else {
+        map.setLayoutProperty(ids.line, "visibility", visibility);
+        if (lineLayout?.["line-cap"]) {
+          map.setLayoutProperty(ids.line, "line-cap", lineLayout["line-cap"]);
+        }
+        if (lineLayout?.["line-join"]) {
+          map.setLayoutProperty(ids.line, "line-join", lineLayout["line-join"]);
+        }
+        Object.entries(linePaint || {}).forEach(([prop, val]) => {
+          map.setPaintProperty(ids.line, prop, val);
+        });
+        moveLayerIfNeeded(map, ids.line, beforeId);
+      }
+    }
+  } catch (error) {
+    console.warn("Loi khi them/cap nhat OGC vector layer:", error.message);
   }
 };
 
@@ -1571,13 +1737,7 @@ const addOrUpdateGeoServerWmsLayer = async (
   }
 
   const mapLayerId = buildOgcLayerId(sourceId);
-  const isFloodLayer = layer?.category === "flood";
-  const opacity =
-    typeof layer?.default_style?.opacity === "number"
-      ? layer.default_style.opacity
-      : isFloodLayer
-        ? 0.88
-        : 0.72;
+  const { rasterPaint } = toMapboxStyle(layer?.default_style, "raster", layer);
 
   try {
     if (!(await waitForMapStyle(map))) {
@@ -1593,7 +1753,7 @@ const addOrUpdateGeoServerWmsLayer = async (
 
     const sourceExists = !!map.getSource(sourceId);
     const layerExists = !!map.getLayer(mapLayerId);
-    console.debug("[OGC-WMS] sourceId=%s sourceExists=%s layerExists=%s beforeId=%s opacity=%s visible=%s", sourceId, sourceExists, layerExists, beforeId, opacity, visible);
+    console.debug("[OGC-WMS] sourceId=%s sourceExists=%s layerExists=%s beforeId=%s visible=%s", sourceId, sourceExists, layerExists, beforeId, visible);
 
     if (!sourceExists) {
       map.addSource(sourceId, {
@@ -1602,7 +1762,7 @@ const addOrUpdateGeoServerWmsLayer = async (
         tileSize: 256,
         minzoom: layer?.min_zoom ?? 0,
         maxzoom: layer?.max_zoom ?? 22,
-        attribution: "GeoServer",
+        attribution: "Cẩm Phả GIS",
       });
       console.debug("[OGC-WMS] addSource OK: %s → %s", sourceId, tileUrl);
     }
@@ -1613,13 +1773,11 @@ const addOrUpdateGeoServerWmsLayer = async (
         "visibility",
         visible ? "visible" : "none",
       );
-      map.setPaintProperty(
-        mapLayerId,
-        "raster-opacity",
-        Math.max(0, Math.min(1, opacity)),
-      );
+      Object.entries(rasterPaint || {}).forEach(([prop, val]) => {
+        map.setPaintProperty(mapLayerId, prop, val);
+      });
       moveLayerIfNeeded(map, mapLayerId, beforeId);
-      console.debug("[OGC-WMS] updated existing layer %s visibility=%s opacity=%s", mapLayerId, visible, opacity);
+      console.debug("[OGC-WMS] updated existing layer %s visibility=%s", mapLayerId, visible);
       return;
     }
 
@@ -1636,13 +1794,13 @@ const addOrUpdateGeoServerWmsLayer = async (
         },
         layout: { visibility: visible ? "visible" : "none" },
         paint: {
-          "raster-opacity": Math.max(0, Math.min(1, opacity)),
           "raster-fade-duration": 250,
+          ...(rasterPaint || {}),
         },
       },
       beforeId,
     );
-    console.debug("[OGC-WMS] addLayer OK: %s (before=%s, opacity=%s)", mapLayerId, beforeId, opacity);
+    console.debug("[OGC-WMS] addLayer OK: %s (before=%s)", mapLayerId, beforeId);
   } catch (error) {
     console.warn("[OGC-WMS] ERROR for %s: %s", sourceId, error.message, error);
   }
@@ -1653,11 +1811,45 @@ export const addOrUpdateGeoServerLayer = async (
   sourceId,
   layer,
   visible = true,
+  options = {},
 ) => {
   const isPoint = isOgcPointGeometry(layer?.geometry_type);
   if (isPoint) {
-    await addOrUpdateGeoServerPointLayer(map, sourceId, layer, visible);
+    await addOrUpdateGeoServerPointLayer(map, sourceId, layer, visible, options);
     return;
+  }
+
+  const isVector =
+    isOgcPolygonGeometry(layer?.geometry_type) ||
+    isOgcLineGeometry(layer?.geometry_type);
+
+  if (isVector && hasCustomVectorStyle(layer?.default_style)) {
+    const rasterLayerId = buildOgcLayerId(sourceId);
+    if (map?.getLayer(rasterLayerId)) {
+      map.removeLayer(rasterLayerId);
+      if (map.getSource(sourceId)) {
+        map.removeSource(sourceId);
+      }
+    }
+    await addOrUpdateGeoServerVectorLayer(map, sourceId, layer, visible, options);
+    return;
+  }
+
+  // If previous vector layers exist for this sourceId, clean them up before switching to raster WMS
+  const vectorLayerIds = buildOgcVectorLayerIds(sourceId);
+  if (
+    map?.getLayer(vectorLayerIds.fill) ||
+    map?.getLayer(vectorLayerIds.outline) ||
+    map?.getLayer(vectorLayerIds.line)
+  ) {
+    [vectorLayerIds.fill, vectorLayerIds.outline, vectorLayerIds.line].forEach(
+      (lid) => {
+        if (map.getLayer(lid)) map.removeLayer(lid);
+      },
+    );
+    if (map.getSource(sourceId)) {
+      map.removeSource(sourceId);
+    }
   }
 
   await addOrUpdateGeoServerWmsLayer(map, sourceId, layer, visible);
@@ -1669,12 +1861,16 @@ export const removeGeoServerLayer = (map, sourceId) => {
   try {
     const mapLayerId = buildOgcLayerId(sourceId);
     const pointLayerIds = buildOgcPointLayerIds(sourceId);
+    const vectorLayerIds = buildOgcVectorLayerIds(sourceId);
 
     [
       pointLayerIds.point,
       pointLayerIds.pointHalo,
       pointLayerIds.clusterCount,
       pointLayerIds.cluster,
+      vectorLayerIds.fill,
+      vectorLayerIds.outline,
+      vectorLayerIds.line,
       mapLayerId,
     ].forEach((layerId) => {
       if (map.getLayer(layerId)) {
@@ -1686,12 +1882,21 @@ export const removeGeoServerLayer = (map, sourceId) => {
       map.removeSource(sourceId);
     }
   } catch (error) {
-    console.warn("Lỗi khi xóa OGC layer:", error.message);
+    console.warn("Loi khi xoa OGC layer:", error.message);
   }
 };
 
 export const addOrUpdateOgcWmsLayer = addOrUpdateGeoServerLayer;
 export const removeOgcWmsLayer = removeGeoServerLayer;
+
+export {
+  buildTimeSeriesSourceId,
+  buildTimeSeriesLayerId,
+  buildTimeSeriesTileUrl,
+  formatTimeLabel,
+  addOrUpdateTimeSeriesLayer,
+  removeTimeSeriesLayerFromMap,
+};
 
 export const addSatelliteLayerToMap = (
   map,

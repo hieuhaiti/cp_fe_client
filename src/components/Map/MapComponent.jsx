@@ -23,10 +23,16 @@ import {
   removeSatelliteLayerFromMap,
   addOrUpdateCategoryLayer,
   addOrUpdateGeoServerLayer,
+  addOrUpdateTimeSeriesLayer,
+  removeTimeSeriesLayerFromMap,
   buildOgcFeatureInfoUrl,
   buildOgcPointLayerIds,
+  buildOgcVectorLayerIds,
   buildOgcSourceId,
   isOgcPointGeometry,
+  isOgcPolygonGeometry,
+  isOgcLineGeometry,
+  hasCustomVectorStyle,
   removeCategoryLayer,
   removeGeoServerLayer,
   highlightFeatureOnMap,
@@ -168,17 +174,22 @@ export default function MapComponent() {
   // satellite state
   const satelliteLayers = useSatelliteStore((s) => s.satelliteLayers);
 
-  // Category layers & highlight - MUST declare before used in effects
+  // Category layers, OGC & Time Series layers - MUST declare before used in effects
   const categoryLayersData = useMapStore((s) => s.categoryLayersData);
   const ogcLayersData = useMapStore((s) => s.ogcLayersData);
+  const timeSeriesLayersData = useMapStore((s) => s.timeSeriesLayersData);
   const categoryLayersDataRef = useRef(categoryLayersData);
   const ogcLayersDataRef = useRef(ogcLayersData);
+  const timeSeriesLayersDataRef = useRef(timeSeriesLayersData);
   useEffect(() => {
     categoryLayersDataRef.current = categoryLayersData;
   }, [categoryLayersData]);
   useEffect(() => {
     ogcLayersDataRef.current = ogcLayersData;
   }, [ogcLayersData]);
+  useEffect(() => {
+    timeSeriesLayersDataRef.current = timeSeriesLayersData;
+  }, [timeSeriesLayersData]);
   const highlightedFeature = useMapStore((s) => s.highlightedFeature);
 
   // draw state
@@ -1051,6 +1062,91 @@ export default function MapComponent() {
     mapLayerRevision,
   ]);
 
+  // ── Đồng bộ GeoTIFF Time Series lên Single & Split map ────────────────────
+  const prevTimeSeriesKeysRef = useRef({
+    single: new Set(),
+    split: new Set(),
+  });
+
+  useEffect(() => {
+    const map = mapRef.current.single;
+    if (!map || !mapsReady.single) return;
+
+    const currentEntries = Object.entries(timeSeriesLayersData || {});
+    const currentKeys = new Set(
+      currentEntries
+        .filter(([, entry]) => Boolean(entry?.tileUrl))
+        .map(([layerId]) => String(layerId)),
+    );
+    const prevKeys = prevTimeSeriesKeysRef.current.single;
+
+    currentEntries.forEach(([layerId, entry]) => {
+      if (entry?.tileUrl) {
+        addOrUpdateTimeSeriesLayer(map, layerId, entry);
+      }
+    });
+
+    prevKeys.forEach((layerId) => {
+      if (!currentKeys.has(layerId)) {
+        removeTimeSeriesLayerFromMap(map, layerId);
+      }
+    });
+
+    const splitMap = mapRef.current.split;
+    if (!splitMap || !mapsReady.split) {
+      prevTimeSeriesKeysRef.current.single = currentKeys;
+      return;
+    }
+
+    const syncSplitTimeSeries = () => {
+      const latestState = useMapStore.getState();
+      const latestData = latestState.timeSeriesLayersData || {};
+      const latestEntries = Object.entries(latestData);
+      const latestKeys = new Set(
+        latestEntries
+          .filter(([, entry]) => Boolean(entry?.tileUrl))
+          .map(([layerId]) => String(layerId)),
+      );
+      const prevSplitKeys = prevTimeSeriesKeysRef.current.split;
+
+      if (!latestState.isSplitMode) {
+        new Set([...prevSplitKeys, ...latestKeys]).forEach((layerId) => {
+          removeTimeSeriesLayerFromMap(splitMap, layerId);
+        });
+        prevTimeSeriesKeysRef.current.split = new Set();
+        return;
+      }
+
+      latestEntries.forEach(([layerId, entry]) => {
+        if (entry?.tileUrl) {
+          addOrUpdateTimeSeriesLayer(splitMap, layerId, entry);
+        }
+      });
+
+      prevSplitKeys.forEach((layerId) => {
+        if (!latestKeys.has(layerId)) {
+          removeTimeSeriesLayerFromMap(splitMap, layerId);
+        }
+      });
+      prevTimeSeriesKeysRef.current.split = latestKeys;
+    };
+
+    if (splitMap.isStyleLoaded()) {
+      syncSplitTimeSeries();
+    } else {
+      splitMap.once("style.load", syncSplitTimeSeries);
+    }
+
+    prevTimeSeriesKeysRef.current.single = currentKeys;
+    return () => splitMap.off("style.load", syncSplitTimeSeries);
+  }, [
+    timeSeriesLayersData,
+    isSplitMode,
+    mapsReady.single,
+    mapsReady.split,
+    mapLayerRevision,
+  ]);
+
   useEffect(() => {
     const map = mapRef.current.single;
     if (!map || !mapsReady.single) return;
@@ -1070,66 +1166,88 @@ export default function MapComponent() {
 
       if (categoryFeatures.length > 0) return;
 
-      const pointLayerEntries = Object.values(ogcLayersData || {})
+      const vectorLayerEntries = Object.values(ogcLayersData || {})
         .filter(
           (layer) =>
-            layer?.geoserver_layer && isOgcPointGeometry(layer.geometry_type),
+            layer?.geoserver_layer &&
+            (isOgcPointGeometry(layer.geometry_type) ||
+              ((isOgcPolygonGeometry(layer.geometry_type) ||
+                isOgcLineGeometry(layer.geometry_type)) &&
+                hasCustomVectorStyle(layer.default_style))),
         )
         .map((layer) => {
           const sourceId = buildOgcSourceId(layer);
           return {
             sourceId,
             layer,
-            ids: buildOgcPointLayerIds(sourceId),
+            pointIds: isOgcPointGeometry(layer.geometry_type)
+              ? buildOgcPointLayerIds(sourceId)
+              : null,
+            vectorIds:
+              isOgcPolygonGeometry(layer.geometry_type) ||
+              isOgcLineGeometry(layer.geometry_type)
+                ? buildOgcVectorLayerIds(sourceId)
+                : null,
           };
         });
 
-      const pointRenderedLayerIds = pointLayerEntries
-        .flatMap(({ ids }) => [ids.cluster, ids.point])
-        .filter((layerId) => map.getLayer(layerId));
-      const pointFeatures = pointRenderedLayerIds.length
+      const vectorRenderedLayerIds = vectorLayerEntries
+        .flatMap(({ pointIds, vectorIds }) => [
+          pointIds?.cluster,
+          pointIds?.point,
+          vectorIds?.fill,
+          vectorIds?.outline,
+          vectorIds?.line,
+        ])
+        .filter((layerId) => layerId && map.getLayer(layerId));
+
+      const vectorFeatures = vectorRenderedLayerIds.length
         ? map.queryRenderedFeatures(event.point, {
-            layers: pointRenderedLayerIds,
+            layers: vectorRenderedLayerIds,
           })
         : [];
-      const pointFeature = pointFeatures[0];
+      const topVectorFeature = vectorFeatures[0];
 
-      if (pointFeature) {
-        const entry = pointLayerEntries.find(
-          ({ sourceId }) => sourceId === pointFeature.source,
+      if (topVectorFeature) {
+        const entry = vectorLayerEntries.find(
+          ({ sourceId }) => sourceId === topVectorFeature.source,
         );
-        if (!entry) return;
-
-        if (pointFeature.properties?.cluster) {
-          const clusterId = pointFeature.properties.cluster_id;
-          const source = map.getSource(entry.sourceId);
-          source?.getClusterExpansionZoom(clusterId, (error, zoom) => {
-            if (error || disposed) return;
-            map.easeTo({
-              center: pointFeature.geometry.coordinates,
-              zoom,
-              duration: 350,
+        if (entry) {
+          if (topVectorFeature.properties?.cluster) {
+            const clusterId = topVectorFeature.properties.cluster_id;
+            const source = map.getSource(entry.sourceId);
+            source?.getClusterExpansionZoom(clusterId, (error, zoom) => {
+              if (error || disposed) return;
+              map.easeTo({
+                center: topVectorFeature.geometry.coordinates,
+                zoom,
+                duration: 350,
+              });
             });
+            return;
+          }
+
+          console.info(`typeNames=${entry.layer.geoserver_layer}`, {
+            id: topVectorFeature.id,
+            geometry: topVectorFeature.geometry,
+            properties: topVectorFeature.properties,
           });
+
+          useModalMapLayerStore
+            .getState()
+            .openModal(mapOgcFeatureToModalData(topVectorFeature, entry.layer));
           return;
         }
-
-        console.info(`typeNames=${entry.layer.geoserver_layer}`, {
-          id: pointFeature.id,
-          geometry: pointFeature.geometry,
-          properties: pointFeature.properties,
-        });
-
-        useModalMapLayerStore
-          .getState()
-          .openModal(mapOgcFeatureToModalData(pointFeature, entry.layer));
-        return;
       }
 
       const activeLayers = Object.values(ogcLayersData || {})
         .filter(
           (layer) =>
-            layer?.geoserver_layer && !isOgcPointGeometry(layer.geometry_type),
+            layer?.geoserver_layer &&
+            !isOgcPointGeometry(layer.geometry_type) &&
+            !((isOgcPolygonGeometry(layer.geometry_type) ||
+              isOgcLineGeometry(layer.geometry_type)) &&
+              hasCustomVectorStyle(layer.default_style)),
         )
         .sort((a, b) => {
           const priorityDiff =
@@ -1174,9 +1292,6 @@ export default function MapComponent() {
       map.off("click", handleOgcLayerClick);
     };
   }, [clickedPointMode, ogcLayersData, mapsReady.single]);
-
-  // ─── Re-apply Category Layers sau khi đổi style ──────────────────────
-  // Listener đã được setup trong setStyle effect bên trên, không cần setup lại
 
   // ─── Click on Category Point Layers → Open Modal ────────────────────
   useEffect(() => {

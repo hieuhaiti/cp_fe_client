@@ -261,6 +261,9 @@ export function MapLegend() {
     (state) => state.images.comparison,
   );
   const ogcLayersData = useMapStore((state) => state.ogcLayersData);
+  const timeSeriesLayersData = useMapStore(
+    (state) => state.timeSeriesLayersData,
+  );
   const mapLegends = useMapStore((state) => state.mapLegends);
 
   const groups = useMemo(() => {
@@ -284,12 +287,25 @@ export function MapLegend() {
       .map(([sourceId, layer]) => toMapLegendGroup(`ogc-${sourceId}`, layer))
       .filter(Boolean);
 
-    return [...registeredGroups, ...ogcGroups, ...satelliteGroups];
+    const timeSeriesGroups = Object.entries(timeSeriesLayersData || {})
+      .map(([groupCode, data]) => {
+        if (!data) return null;
+        return toMapLegendGroup(`ts-${groupCode}`, {
+          ...data,
+          title: data.group?.name_vi || data.group?.name_en || data.layer?.name_vi || data.layer?.name || groupCode,
+          subtitle: data.step?.label ? `Ảnh năm ${data.step.label}` : data.time ? `Ảnh thời điểm ${data.time}` : "Ảnh theo chuỗi thời gian",
+          legend: data.legend || data.group?.legend || data.step?.legend || data.layer?.legend_config || data.layer?.legend || null,
+        });
+      })
+      .filter(Boolean);
+
+    return [...timeSeriesGroups, ...registeredGroups, ...ogcGroups, ...satelliteGroups];
   }, [
     comparisonImages,
     isCompareMode,
     mapLegends,
     ogcLayersData,
+    timeSeriesLayersData,
     satelliteLayers,
   ]);
 

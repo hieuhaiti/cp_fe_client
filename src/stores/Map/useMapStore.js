@@ -9,6 +9,15 @@ export const useMapStore = create((set, get) => ({
   // Dữ liệu category layers đang hiển thị trên map: { [sourceId]: geojson }
   categoryLayersData: {},
   ogcLayersData: {},
+  // GeoTIFF Time Series đang hiển thị trên map:
+  // { [layerId]: { layer, time, tileUrl, opacity } }
+  timeSeriesLayersData: {},
+  // Trạng thái điều khiển của panel Time Series:
+  // { [layerId]: { timeIndex, isPlaying, intervalMs } }
+  //
+  // Cố ý tách khỏi timeSeriesLayersData: panel bị unmount khi người dùng đổi tab
+  // sidebar, nhưng raster phải tiếp tục hiển thị và autoplay phải nhớ vị trí.
+  timeSeriesPanelState: {},
   // Kịch bản ngập đang active: { id, sourceId, layer } | null
   activeFloodScenario: null,
   mapLegends: {},
@@ -101,6 +110,43 @@ export const useMapStore = create((set, get) => ({
 
   clearAllOgcLayersData: () => {
     set({ ogcLayersData: {} });
+  },
+
+  setTimeSeriesLayer: (layerId, entry) => {
+    set((state) => ({
+      timeSeriesLayersData: {
+        ...state.timeSeriesLayersData,
+        [layerId]: { ...state.timeSeriesLayersData[layerId], ...entry },
+      },
+    }));
+  },
+
+  setTimeSeriesPanelState: (layerId, patch) => {
+    set((state) => ({
+      timeSeriesPanelState: {
+        ...state.timeSeriesPanelState,
+        [layerId]: { ...state.timeSeriesPanelState[layerId], ...patch },
+      },
+    }));
+  },
+
+  // Xóa cả hai object cùng lúc để trạng thái điều khiển không rò lại khi người
+  // dùng bật lại lớp.
+  removeTimeSeriesLayer: (layerId) => {
+    set((state) => {
+      const nextData = { ...state.timeSeriesLayersData };
+      const nextPanel = { ...state.timeSeriesPanelState };
+      delete nextData[layerId];
+      delete nextPanel[layerId];
+      return {
+        timeSeriesLayersData: nextData,
+        timeSeriesPanelState: nextPanel,
+      };
+    });
+  },
+
+  clearAllTimeSeriesLayers: () => {
+    set({ timeSeriesLayersData: {}, timeSeriesPanelState: {} });
   },
 
   setActiveFloodScenario: (scenario) => set({ activeFloodScenario: scenario }),

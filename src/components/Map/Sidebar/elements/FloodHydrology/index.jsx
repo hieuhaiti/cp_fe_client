@@ -46,6 +46,7 @@ import {
   getFloodOverview,
   getFloodRuns,
 } from "@/features/flood/api/floodApi";
+import HierarchicalPeriodAccordion from "./period-selectors/HierarchicalPeriodAccordion";
 
 /**
  * Diễn giải ngắn gọn, dễ hiểu cho từng loại lớp raster.
@@ -182,7 +183,7 @@ const TREND_LAYER_GROUPS = [
   },
   {
     key: "qa",
-    label: "Kỹ thuật (QA)",
+    label: "Kiểm tra chất lượng",
     codes: new Set(["frequent_flood", "flood_frequency", "stratum"]),
   },
 ];
@@ -199,7 +200,7 @@ function describeArtifact(artifact) {
   return (
     ARTIFACT_GLOSSARY[artifact?.code] ||
     artifact?.metadata?.description ||
-    "Lớp raster chuyên đề dùng để chồng ghép và đối chiếu trên bản đồ."
+    "Lớp bản đồ chuyên đề dùng để chồng ghép và đối chiếu."
   );
 }
 
@@ -293,22 +294,8 @@ function getAnalysisPeriods(run) {
   return periods;
 }
 
-/**
- * Short label shown in the run-selector dropdown.
- */
-function runPeriodLabel(run) {
-  const meta = runMetadata(run);
-  if (meta.monitorStart) {
-    return meta.monitorEnd
-      ? `${meta.monitorStart} – ${meta.monitorEnd}`
-      : meta.monitorStart;
-  }
-  return String(meta.analysisYear || run?.id);
-}
-
 function getModuleMetrics(run) {
   const metadata = runMetadata(run);
-  const isMonitoring = metadata.monitorStart != null;
 
   return [
     {
@@ -496,7 +483,6 @@ function LayerRow({ artifact, legend, checked, onToggle }) {
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const label =
     artifact.metadata?.label?.vi || legend?.label?.vi || artifact.code;
-  const isQa = artifact.role === "QA";
   const resolution = artifact.resolutionM
     ? `${formatNumber(artifact.resolutionM)} m`
     : null;
@@ -593,7 +579,6 @@ export function FloodHydrology() {
   const [visibleIds, setVisibleIds] = useState(() => new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [collapsed, setCollapsed] = useState(false);
   const abortControllerRef = useRef(null);
   const runsAbortRef = useRef(null);
   const layersRef = useRef([]);
@@ -688,12 +673,6 @@ export function FloodHydrology() {
     () => new Map(legends.map((legend) => [legend.code, legend])),
     [legends],
   );
-
-  // Sync visible flood artifact legends into the float legend panel.
-
-  const layerCounts = useMemo(() => {
-    return layers.filter((l) => l.module === "trend").length;
-  }, [layers]);
 
   const availableRuns = useMemo(
     () => buildAvailableRuns(runs, layers, overview),
@@ -862,46 +841,22 @@ export function FloodHydrology() {
           ) : (
             <>
               {/* Step 1 — always visible */}
-              <section className="space-y-3" aria-label="Chọn dữ liệu ngập lụt">
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <StepLabel step="1" htmlFor="flood-period-select">
-                      Chọn kỳ giám sát
-                    </StepLabel>
-                    <Badge variant="outline" className="text-[10px]">
-                      {availableRuns.length} kỳ
-                    </Badge>
-                  </div>
-                  <Select
-                    value={effectiveRunId}
-                    onValueChange={handleRunChange}
-                    disabled={!availableRuns.length || loading}
-                  >
-                    <SelectTrigger
-                      id="flood-period-select"
-                      size="sm"
-                      variant="filled"
-                      isLoading={loading && availableRuns.length > 0}
-                      className="w-full text-xs"
-                      aria-label="Chọn kỳ giám sát ngập lụt"
-                    >
-                      <SelectValue placeholder="Chưa có kỳ giám sát." />
-                    </SelectTrigger>
-                    <SelectContent
-                      position="popper"
-                      align="start"
-                      className="max-h-64"
-                    >
-                      {availableRuns.map((run, index) => (
-                        <SelectItem key={run.id} value={normalizeId(run.id)}>
-                          {runPeriodLabel(run) ||
-                            formatDateTime(run.finishedAt || run.publishedAt)}
-                          {index === 0 ? " · mới nhất" : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+              <section className="space-y-2" aria-label="Chọn dữ liệu ngập lụt">
+                <div className="flex items-center justify-between gap-2">
+                  <StepLabel step="1" htmlFor="flood-period-select">
+                    Chọn kỳ giám sát
+                  </StepLabel>
+                  <Badge variant="outline" className="text-[10px]">
+                    {availableRuns.length} kỳ
+                  </Badge>
                 </div>
+                
+                <HierarchicalPeriodAccordion
+                  runs={availableRuns}
+                  selectedRunId={effectiveRunId}
+                  onSelectRun={handleRunChange}
+                  disabled={!availableRuns.length || loading}
+                />
               </section>
 
               <div className="space-y-3">

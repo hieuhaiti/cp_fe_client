@@ -217,7 +217,7 @@ export function StyleChange() {
             </Label>
           </TooltipTrigger>
           {!terrainSupported && (
-            <TooltipContent>Bản đồ nền dùng tile không hỗ trợ địa hình 3D.</TooltipContent>
+            <TooltipContent>Bản đồ nền này không hỗ trợ địa hình 3D.</TooltipContent>
           )}
         </Tooltip>
       </div>

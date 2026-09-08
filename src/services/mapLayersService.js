@@ -4,6 +4,7 @@ import { withQuery } from "@/services/apiClient/request";
 
 const MAP_PATH = "/web-map";
 const LAYERS_PATH = `${MAP_PATH}/layers`;
+const TIME_SERIES_LAYERS_PATH = `${MAP_PATH}/time-series-layers`;
 const BASEMAPS_PATH = `${MAP_PATH}/basemaps`;
 
 /**
@@ -49,8 +50,40 @@ export function normalizeWebMapLayer(layer, index = 0) {
     is_active: read(layer, "is_active", "isActive"),
     is_editable: read(layer, "is_editable", "isEditable"),
     layer_kind: read(layer, "layer_kind", "layerKind") || "overlay",
-    default_style: read(layer, "default_style", "defaultStyle") || {},
+    default_style:
+      read(layer, "default_style", "defaultStyle") ||
+      layer?.metadata?.defaultStyle ||
+      {},
+    legend: read(layer, "legend") ?? null,
+    // Preserve the server's camelCase Time Series DTO, including members.
+    timeSeries: read(layer, "time_series", "timeSeries") ?? null,
   };
+}
+
+/**
+ * Phân biệt lớp GeoTIFF Time Series với raster thường.
+ *
+ * Không được phân nhánh theo `storageKind`: cả hai loại đều là
+ * `geotiff_minio`. Sự hiện diện của `timeSeries` là tín hiệu duy nhất, và nó
+ * biến mất khi toàn bộ ảnh bị xoá — lúc đó layer phải được vẽ như raster
+ * thường và không được gửi query `time`.
+ */
+export function isTimeSeriesLayer(layer) {
+  const series = layer?.timeSeries;
+  return series?.enabled === true && (series.values?.length ?? 0) > 0;
+}
+
+/** Đọc danh sách mốc thời gian đã được server sort tăng dần. */
+export function getTimeSeriesValues(layer) {
+  return isTimeSeriesLayer(layer) ? layer.timeSeries.values : [];
+}
+
+/** Mốc mặc định; server đặt bằng phần tử cuối của `values`. */
+export function getTimeSeriesDefault(layer) {
+  const values = getTimeSeriesValues(layer);
+  if (!values.length) return null;
+  const preferred = layer.timeSeries.defaultTime;
+  return values.includes(preferred) ? preferred : values[values.length - 1];
 }
 
 /** Normalizes the public `/web-map/basemaps` catalog DTO. */
@@ -77,6 +110,21 @@ export function useGetMapLayersQuery(params = {}, options = {}) {
   // defines this endpoint without filter query parameters.
   void params;
   return useApiQuery(["map", "layers"], LAYERS_PATH, options);
+}
+
+/** GET /web-map/time-series-layers */
+export function getTimeSeriesLayers() {
+  return fetcher(TIME_SERIES_LAYERS_PATH);
+}
+
+export function useGetTimeSeriesLayersQuery(options = {}) {
+  return useApiQuery(["map", "time-series-layers"], TIME_SERIES_LAYERS_PATH, {
+    ...options,
+    select: (payload) =>
+      extractWebMapItems(payload)
+        .map(normalizeWebMapLayer)
+        .filter((layer) => isTimeSeriesLayer(layer) && layer.geoserver_layer),
+  });
 }
 
 /** GET /web-map/basemaps */

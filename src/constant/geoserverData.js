@@ -77,3 +77,24 @@ export const GEOSERVER_POINT_PAINT = {
     "circle-opacity": 0.95,
   },
 };
+
+export const GEOSERVER_VECTOR_PAINT = {
+  polygonFill: {
+    "fill-color": "#3388ff",
+    "fill-opacity": 0.35,
+    "fill-antialias": true,
+  },
+  polygonOutline: {
+    "line-color": "#0055aa",
+    "line-width": 1.5,
+    "line-opacity": 0.9,
+  },
+  line: {
+    "line-color": "#ff3300",
+    "line-width": 2.5,
+    "line-opacity": 0.95,
+  },
+  raster: {
+    "raster-opacity": 0.72,
+  },
+};

@@ -33,8 +33,17 @@ const buildEndpoint = (layerId, service, params) => {
   return `${apiBaseUrl}/maps/layers/${layerId}/${service}?${params.toString()}`;
 };
 
-/** Builds a Mapbox raster tile URL through the server-side WMS proxy. */
-export const buildMapProxyWmsTileUrl = async (layer) => {
+/**
+ * Builds a Mapbox raster tile URL through the server-side WMS proxy.
+ *
+ * @param {object} layer Layer DTO from `/web-map/layers`.
+ * @param {object} [options]
+ * @param {string} [options.time] ISO-8601 UTC millisecond timestamp taken from
+ *   `layer.timeSeries.values`. Only pass this for GeoTIFF Time Series layers:
+ *   the proxy answers 422 TIME_NOT_SUPPORTED when a plain raster receives it,
+ *   and 422 TIME_REQUIRED when a Time Series layer does not.
+ */
+export const buildMapProxyWmsTileUrl = async (layer, { time } = {}) => {
   const layerId = getLayerId(layer);
   if (!layerId) return "";
 
@@ -47,6 +56,9 @@ export const buildMapProxyWmsTileUrl = async (layer) => {
     transparent: "true",
     version: "1.3.0",
   });
+  if (time) {
+    params.set("time", time);
+  }
   if (!(layer?.is_public ?? layer?.isPublic)) {
     params.set("ticket", await getTicket(layerId, "view"));
   }

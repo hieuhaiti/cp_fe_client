@@ -11,9 +11,9 @@ const _formatDistance = (distanceInKm) => {
 
 const _formatArea = (areaInSqMeters) => {
   if (areaInSqMeters < 10000) {
-    return `${areaInSqMeters.toFixed(0)} mÂ²`;
+    return `${areaInSqMeters.toFixed(0)} m²`;
   }
-  return `${(areaInSqMeters / 1000000).toFixed(2)} kmÂ²`;
+  return `${(areaInSqMeters / 1000000).toFixed(2)} km²`;
 };
 
 /**

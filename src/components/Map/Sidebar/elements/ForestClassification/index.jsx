@@ -414,10 +414,7 @@ export function ForestClassification() {
                     <Label className="block truncate text-xs">
                       Phân loại đối tượng
                     </Label>
-                    <p
-                      className="mt-0.5 truncate text-[10px] text-muted-foreground"
-                      title={snapshot.geoserverLayer || undefined}
-                    >
+                    <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
                       Kỳ {periodLabel(snapshot)} · Hiển thị trên bản đồ
                     </p>
                   </div>

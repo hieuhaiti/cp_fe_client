@@ -50,7 +50,7 @@ function Input({
   ...props
 }) {
   return (
-    <span className="relative block w-full">
+    <span className={cn("block w-full", isLoading && "relative")}>
       <input
         type={type}
         data-slot="input"

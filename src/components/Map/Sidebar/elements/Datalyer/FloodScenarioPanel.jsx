@@ -157,12 +157,6 @@ export default function FloodScenarioPanel() {
   const [activeScenario, setActiveScenarioLocal] = useState(null);
   const isActive = activeScenario != null;
 
-  const {
-    setActiveFloodScenario,
-    clearActiveFloodScenario,
-    setOgcLayerData,
-    removeOgcLayerData,
-  } = useMapStore.getState();
 
   const scenariosQuery = useGetFloodScenariosQuery();
   const scenarios = useMemo(() => {
@@ -266,8 +260,10 @@ export default function FloodScenarioPanel() {
         : prev,
     );
     autoActivatedRef.current = true;
-    handleToggle(best);
-    setOpen(true);
+    queueMicrotask(() => {
+      handleToggle(best);
+      setOpen(true);
+    });
   }, [scenarios, activeScenario, handleToggle]);
 
   const handleDeactivate = useCallback(() => {

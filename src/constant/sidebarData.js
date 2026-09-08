@@ -4,6 +4,7 @@ import {
   Waves,
   Satellite,
   TreePine,
+  Clock,
 } from "lucide-react";
 import { DataLayers } from "@/components/Map/Sidebar/elements/Datalyer";
 import { FloodHydrology } from "@/components/Map/Sidebar/elements/FloodHydrology";
@@ -12,6 +13,7 @@ import {
   SingleMode,
 } from "@/components/Map/Sidebar/elements/SatelliteControll";
 import { ForestClassification } from "@/components/Map/Sidebar/elements/ForestClassification";
+import { TimeSeries } from "@/components/Map/Sidebar/elements/TimeSeries";
 
 export const trackMapping = [
   {
@@ -22,6 +24,14 @@ export const trackMapping = [
     color: "text-primary",
     component: DataLayers,
     default: true,
+  },
+  {
+    id: "time_series",
+    icon: Clock,
+    label: "Lớp dữ liệu chuỗi thời gian",
+    description: "Xem biến động ảnh raster theo từng mốc thời gian",
+    color: "text-info",
+    component: TimeSeries,
   },
   {
     id: "flood-hydrology",

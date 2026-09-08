@@ -35,11 +35,13 @@ function formatFileSize(value) {
   return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 }
 
-function InfoRow({ icon: Icon, label, value }) {
+function InfoRow({ icon: IconComponent, label, value }) {
   if (!value) return null;
   return (
     <div className="flex items-start gap-3">
-      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+      {IconComponent ? (
+        <IconComponent className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+      ) : null}
       <div className="min-w-0">
         <p className="text-muted-foreground text-xs">{label}</p>
         <p className="font-medium text-card-foreground break-words">{value}</p>
