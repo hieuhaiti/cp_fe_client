@@ -73,20 +73,27 @@ export function normalizeDefaultStyle(rawStyle) {
  */
 export function hasCustomVectorStyle(rawStyle) {
   if (!rawStyle || typeof rawStyle !== "object") return false;
-  const s = rawStyle;
+  const s = normalizeDefaultStyle(rawStyle);
   return Boolean(
-    s.fillColor || s.fill_color ||
-    s.strokeColor || s.stroke_color || s.color ||
-    s.circleColor || s.circle_color ||
-    s.circleStrokeColor || s.circle_stroke_color ||
-    s.fillOpacity !== undefined || s.fill_opacity !== undefined ||
-    s.strokeOpacity !== undefined || s.stroke_opacity !== undefined ||
-    s.circleOpacity !== undefined || s.circle_opacity !== undefined ||
-    s.strokeWidth !== undefined || s.stroke_width !== undefined ||
-    s.circleRadius !== undefined || s.circle_radius !== undefined ||
-    s.strokeDasharray || s.stroke_dasharray ||
-    s.lineCap || s.line_cap ||
-    s.lineJoin || s.line_join
+    s.fillColor ||
+      s.strokeColor ||
+      s.circleColor ||
+      s.circleStrokeColor ||
+      (s.opacity !== undefined && !isNaN(s.opacity)) ||
+      (s.fillOpacity !== undefined && !isNaN(s.fillOpacity)) ||
+      (s.strokeOpacity !== undefined && !isNaN(s.strokeOpacity)) ||
+      (s.circleOpacity !== undefined && !isNaN(s.circleOpacity)) ||
+      (s.circleStrokeOpacity !== undefined && !isNaN(s.circleStrokeOpacity)) ||
+      (s.strokeWidth !== undefined && !isNaN(s.strokeWidth)) ||
+      (s.strokeBlur !== undefined && !isNaN(s.strokeBlur)) ||
+      (s.strokeOffset !== undefined && !isNaN(s.strokeOffset)) ||
+      (s.circleRadius !== undefined && !isNaN(s.circleRadius)) ||
+      (s.circleBlur !== undefined && !isNaN(s.circleBlur)) ||
+      (s.circleStrokeWidth !== undefined && !isNaN(s.circleStrokeWidth)) ||
+      (Array.isArray(s.strokeDasharray) && s.strokeDasharray.length > 0) ||
+      s.lineCap ||
+      s.lineJoin ||
+      s.fillAntialias !== undefined
   );
 }
 
