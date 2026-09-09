@@ -1,4 +1,5 @@
 import { buildMapProxyWmsTileUrl } from "./mapProxy";
+import { GEOSERVER_LAYER_ORDER_PRIORITY } from "@/constant/geoserverData";
 
 /**
  * GeoTIFF Time Series raster helpers.
@@ -86,7 +87,8 @@ const getBeforeId = (map, selfLayerId) => {
       layer.type !== "raster" &&
       layer.type !== "background" &&
       (layer.metadata?.ktManagedOverlay === true ||
-        layer.metadata?.ktGeometryPriority != null),
+        layer.metadata?.ktGeometryPriority != null ||
+        layer.metadata?.cpGeometryPriority != null),
   );
   return target?.id;
 };
@@ -138,6 +140,8 @@ export const addOrUpdateTimeSeriesLayer = async (map, layerId, entry) => {
         type: "raster",
         source: sourceId,
         metadata: {
+          cpGeometryPriority: GEOSERVER_LAYER_ORDER_PRIORITY.RASTER,
+          ktGeometryPriority: GEOSERVER_LAYER_ORDER_PRIORITY.RASTER,
           ktGeometryType: "raster",
           ktLayerCode: entry?.layer?.code || null,
           ktManagedOverlay: true,

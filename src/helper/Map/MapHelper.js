@@ -522,10 +522,29 @@ const svgStringToImage = (svgString, color = "#3b82f6", size = 32) => {
  * @returns {number|null}
  */
 function getManagedLayerPriority(layer) {
-  const metadataPriority = layer?.metadata?.ktGeometryPriority;
+  const metadataPriority =
+    layer?.metadata?.cpGeometryPriority ??
+    layer?.metadata?.ktGeometryPriority ??
+    layer?.metadata?.geometryPriority;
   if (typeof metadataPriority === "number") return metadataPriority;
 
   const layerId = String(layer?.id || "");
+  const sourceId =
+    typeof layer?.source === "string" ? layer.source : String(layer?.source || "");
+
+  // 1. Nhận diện các lớp raster (luôn có độ ưu tiên thấp nhất để nằm dưới cùng)
+  if (
+    layer?.type === "raster" ||
+    layerId.endsWith("-raster") ||
+    sourceId.startsWith("satellite-src-") ||
+    sourceId.startsWith("ts-src-") ||
+    layerId.startsWith("classified-") ||
+    layerId.startsWith("satellite-")
+  ) {
+    return GEOSERVER_LAYER_ORDER_PRIORITY.RASTER;
+  }
+
+  // 2. Nhận diện các lớp category (cat-*)
   if (layerId.startsWith("cat-")) {
     if (layerId.endsWith("-fill") || layerId.endsWith("-outline")) {
       return GEOSERVER_LAYER_ORDER_PRIORITY.POLYGON;
@@ -536,10 +555,15 @@ function getManagedLayerPriority(layer) {
     return GEOSERVER_LAYER_ORDER_PRIORITY.POINT;
   }
 
-  const sourceId =
-    typeof layer?.source === "string" ? layer.source : String(layer?.source || "");
-  if (sourceId.startsWith("satellite-src-")) {
-    return GEOSERVER_LAYER_ORDER_PRIORITY.RASTER;
+  // 3. Nhận diện các lớp OGC GeoServer (ogc-*)
+  if (layerId.startsWith("ogc-")) {
+    if (layerId.endsWith("-fill") || layerId.endsWith("-outline")) {
+      return GEOSERVER_LAYER_ORDER_PRIORITY.POLYGON;
+    }
+    if (layerId.endsWith("-line")) {
+      return GEOSERVER_LAYER_ORDER_PRIORITY.LINE;
+    }
+    return GEOSERVER_LAYER_ORDER_PRIORITY.POINT;
   }
 
   return null;
@@ -1745,11 +1769,15 @@ const addOrUpdateGeoServerWmsLayer = async (
       return;
     }
 
-    const beforeId = getOgcLayerBeforeId(
-      map,
-      layer?.geometry_type,
-      mapLayerId,
-    );
+    const isRasterLayer =
+      !layer?.geometry_type ||
+      String(layer?.geometry_type).toLowerCase().includes("raster");
+    const geometryPriority = isRasterLayer
+      ? GEOSERVER_LAYER_ORDER_PRIORITY.RASTER
+      : getOgcGeometryPriority(layer?.geometry_type);
+    const beforeId = isRasterLayer
+      ? getRasterLayerBeforeId(map, mapLayerId)
+      : getOgcLayerBeforeId(map, layer?.geometry_type, mapLayerId);
 
     const sourceExists = !!map.getSource(sourceId);
     const layerExists = !!map.getLayer(mapLayerId);
@@ -1787,8 +1815,9 @@ const addOrUpdateGeoServerWmsLayer = async (
         type: "raster",
         source: sourceId,
         metadata: {
-          ktGeometryPriority: getOgcGeometryPriority(layer?.geometry_type),
-          ktGeometryType: layer?.geometry_type || null,
+          cpGeometryPriority: geometryPriority,
+          ktGeometryPriority: geometryPriority,
+          ktGeometryType: layer?.geometry_type || "raster",
           ktLayerCode: layer?.code || null,
           ktManagedOverlay: true,
         },
