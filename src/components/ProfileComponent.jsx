@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import LoadingOverlay from "@/components/common/LoadingOverlay";
-import { formatDateTime, praseLink } from "@/lib/utils";
+import { formatDateTime, parseLink } from "@/lib/utils";
 import {
   changePassword,
   setPassword,
@@ -232,7 +232,7 @@ export default function ProfileComponent() {
               <div className="flex h-18 w-18 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/25 bg-white/15 text-xl font-bold text-white shadow-lg sm:h-22 sm:w-22 sm:text-2xl">
                 {profile.avatarUrl && !avatarFailed ? (
                   <img
-                    src={praseLink(profile.avatarUrl)}
+                    src={parseLink(profile.avatarUrl)}
                     alt={`Ảnh đại diện ${profile.fullName}`}
                     className="h-full w-full object-cover"
                     onError={() => setAvatarFailed(true)}

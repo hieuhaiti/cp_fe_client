@@ -7,7 +7,8 @@ import { uploadFile } from "@/services/storageService";
 const FEEDBACK_PATH = "/field-reports";
 const ADMIN_FEEDBACK_PATH = "/admin/field-reports";
 const DEFAULT_LANG = "vi";
-const ANONYMOUS_ID_KEY = "kt_feedback_anonymous_id";
+const ANONYMOUS_ID_KEY = "cp_feedback_anonymous_id";
+const LEGACY_ANONYMOUS_ID_KEY = "kt_feedback_anonymous_id";
 
 function createUuid() {
   if (window.crypto?.randomUUID) return window.crypto.randomUUID();
@@ -17,6 +18,13 @@ function createUuid() {
 export function getFeedbackAnonymousId() {
   const existing = window.localStorage.getItem(ANONYMOUS_ID_KEY);
   if (existing) return existing;
+
+  const legacyId = window.localStorage.getItem(LEGACY_ANONYMOUS_ID_KEY);
+  if (legacyId) {
+    window.localStorage.setItem(ANONYMOUS_ID_KEY, legacyId);
+    window.localStorage.removeItem(LEGACY_ANONYMOUS_ID_KEY);
+    return legacyId;
+  }
 
   const anonymousId = createUuid();
   window.localStorage.setItem(ANONYMOUS_ID_KEY, anonymousId);

@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/select";
 import { useDebounce } from "@/hooks/useDebounce";
 import NewsLayout from "@/layout/NewsLayout";
-import { formatDateTime, praseLink } from "@/lib/utils";
+import { formatDateTime, parseLink } from "@/lib/utils";
 import { toast } from "react-toastify";
 import {
   updateFeedbackStatus,
@@ -513,17 +513,19 @@ export default function MyFeedbackPage() {
 
       {!isAdminReviewMode && (
         <Dialog open={formOpen} onOpenChange={setFormOpen}>
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-            <DialogHeader>
+          <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden p-0 sm:max-w-2xl">
+            <DialogHeader className="shrink-0 border-b border-border px-4 pb-4 pt-5 pr-12 text-left sm:px-6 sm:pt-6">
               <DialogTitle>Gửi phản ánh hiện trường</DialogTitle>
               <DialogDescription>
                 Gửi phản ánh kèm tọa độ và ảnh/video hiện trường nếu có.
               </DialogDescription>
             </DialogHeader>
-            <FeedbackForm
-              onSuccess={() => setFormOpen(false)}
-              onCancel={() => setFormOpen(false)}
-            />
+            <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-4 sm:px-6 sm:pb-6">
+              <FeedbackForm
+                onSuccess={() => setFormOpen(false)}
+                onCancel={() => setFormOpen(false)}
+              />
+            </div>
           </DialogContent>
         </Dialog>
       )}
@@ -538,8 +540,8 @@ export default function MyFeedbackPage() {
           }
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden p-0 sm:max-w-2xl">
+          <DialogHeader className="shrink-0 border-b border-border px-4 pb-4 pt-5 pr-12 text-left sm:px-6 sm:pt-6">
             <DialogTitle>
               {detail?.title || `Phản ánh #${detail?.id || ""}`}
             </DialogTitle>
@@ -550,6 +552,7 @@ export default function MyFeedbackPage() {
             </DialogDescription>
           </DialogHeader>
 
+          <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-4 sm:px-6 sm:pb-6">
           {detail && (
             <div className="grid gap-4">
               <div className="flex flex-wrap gap-2">
@@ -591,7 +594,7 @@ export default function MyFeedbackPage() {
                   </h3>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {detailMedia.map((url) => {
-                      const fullUrl = praseLink(url);
+                      const fullUrl = parseLink(url);
                       return (
                         <a
                           key={url}
@@ -676,6 +679,7 @@ export default function MyFeedbackPage() {
                 )}
             </div>
           )}
+          </div>
         </DialogContent>
       </Dialog>
     </NewsLayout>

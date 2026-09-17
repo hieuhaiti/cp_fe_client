@@ -27,7 +27,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useModalMapLayerStore } from "@/stores/Map/useModalMapLayerStore";
-import { cn, praseLink } from "@/lib/utils";
+import { cn, parseLink } from "@/lib/utils";
 
 const HIDDEN_PROPERTY_KEYS = new Set([
   "category",
@@ -337,7 +337,7 @@ function getImageUrl(properties) {
       typeof value === "string" &&
       value.trim(),
   );
-  return entry ? praseLink(entry[1]) : null;
+  return entry ? parseLink(entry[1]) : null;
 }
 
 function CopyCoordinateButton({ value }) {
@@ -567,7 +567,7 @@ export function MapLayerDetailModal() {
       label: getCategoryLabel(mapLayerData),
       color,
       colorWash: hexToRgba(color),
-      iconUrl: mapLayerData?.icon_url ? praseLink(mapLayerData.icon_url) : null,
+      iconUrl: mapLayerData?.icon_url ? parseLink(mapLayerData.icon_url) : null,
     };
   }, [mapLayerData]);
 

@@ -1,6 +1,6 @@
-# WebGIS Kon Tum - Client
+# WebGIS Cẩm Phả - Client
 
-Ứng dụng WebGIS công khai dành cho người dân và người dùng cuối tỉnh Kon Tum. Trải nghiệm trung tâm là bản đồ tương tác phục vụ tra cứu tài nguyên rừng, môi trường, ảnh vệ tinh, thời tiết, cảnh báo cháy rừng và phản ánh hiện trường.
+Ứng dụng WebGIS công khai dành cho người dân và người dùng tại thành phố Cẩm Phả, tỉnh Quảng Ninh. Trải nghiệm trung tâm là bản đồ tương tác phục vụ tra cứu lớp dữ liệu, tài nguyên rừng, môi trường, ảnh vệ tinh, ngập lụt, thủy văn và phản ánh hiện trường.
 
 Đây không phải cổng quản trị. Các quy trình quản trị hệ thống, dữ liệu và nghiệp vụ chuyên sâu được triển khai trong thư mục `admin/`.
 
@@ -8,9 +8,8 @@
 
 - Hiển thị bản đồ nền và các lớp dữ liệu chuyên đề.
 - Tra cứu, tìm kiếm và xem thông tin đối tượng trên bản đồ.
-- Theo dõi thời tiết, chất lượng không khí và các lớp dữ liệu khí tượng.
+- Theo dõi dữ liệu ngập lụt, thủy văn và kết quả phân loại lớp phủ.
 - Xem, cấu hình và so sánh ảnh vệ tinh.
-- Theo dõi nguy cơ cháy rừng và điểm cháy thực tế khi API tương ứng được cung cấp.
 - Đọc tin tức, văn bản và báo cáo công khai.
 - Gửi phản ánh hiện trường kèm vị trí, mô tả và hình ảnh.
 - Đăng ký, đăng nhập, quản lý hồ sơ và theo dõi phản ánh đã gửi.

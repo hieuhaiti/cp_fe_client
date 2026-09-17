@@ -22,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import NewsLayout from "@/layout/NewsLayout";
-import { formatDate, isHtmlContent, praseLink } from "@/lib/utils";
+import { formatDate, isHtmlContent, parseLink } from "@/lib/utils";
 import { createNewsComment, useGetNewsCommentsQuery } from "@/services/commentsService";
 import { useGetNewsDetailBySlugQuery } from "@/services/newsService";
 import useAuthStore from "@/stores/useAuthStore";
@@ -310,7 +310,7 @@ export default function NewsDetailPage() {
           {news.coverUrl && (
             <div className="relative z-10 mx-3 -mt-4 overflow-hidden rounded-2xl border-4 border-background bg-muted shadow-lg sm:mx-8 sm:-mt-8">
               <img
-                src={praseLink(news.coverUrl)}
+                src={parseLink(news.coverUrl)}
                 alt={news.title}
                 className="h-[18rem] w-full object-cover sm:h-[26rem] lg:h-[30rem]"
                 onError={(event) => {
@@ -472,7 +472,7 @@ export default function NewsDetailPage() {
                           <div className="flex gap-3">
                             {comment.userAvatar ? (
                               <img
-                                src={praseLink(comment.userAvatar)}
+                                src={parseLink(comment.userAvatar)}
                                 alt={comment.full_name || comment.userName || "Người bình luận"}
                                 className="h-10 w-10 shrink-0 rounded-full object-cover"
                                 loading="lazy"

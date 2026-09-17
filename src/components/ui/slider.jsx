@@ -18,8 +18,6 @@ const sliderRangeVariants = {
   "gradient-destructive": "bg-(image:--gradient-destructive)",
   "gradient-info": "bg-(image:--gradient-info)",
   "gradient-map": "bg-(image:--gradient-map)",
-  "gradient-fire":
-    "bg-destructive [background-image:var(--gradient-fire)]",
 };
 
 const sliderThumbVariants = {
@@ -37,8 +35,6 @@ const sliderThumbVariants = {
     "border-destructive focus-visible:ring-destructive/20",
   "gradient-info": "border-info",
   "gradient-map": "border-primary",
-  "gradient-fire":
-    "border-destructive shadow-[0_0_0_3px_color-mix(in_srgb,var(--destructive)_20%,transparent)]",
 };
 
 function Slider({

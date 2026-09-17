@@ -15,14 +15,47 @@ import { toast } from "react-toastify";
 import NotificationMenu from "@/components/common/NotificationMenu";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { praseLink } from "@/lib/utils";
+import { parseLink } from "@/lib/utils";
 import { useMapStore } from "@/stores/Map/useMapStore";
 import useAuthStore from "@/stores/useAuthStore.jsx";
+
+function AppleIcon({ className }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M17.05 12.54c-.03-3.19 2.61-4.74 2.73-4.81a5.87 5.87 0 0 0-4.63-2.5c-1.95-.2-3.84 1.17-4.83 1.17-1.01 0-2.54-1.15-4.18-1.12a6.14 6.14 0 0 0-5.16 3.15c-2.25 3.89-.57 9.61 1.58 12.76 1.08 1.54 2.33 3.26 3.97 3.2 1.6-.07 2.2-1.03 4.13-1.03 1.91 0 2.48 1.03 4.15.99 1.72-.03 2.8-1.55 3.84-3.11a12.74 12.74 0 0 0 1.76-3.59 5.54 5.54 0 0 1-3.36-5.11ZM13.88 3.16A5.56 5.56 0 0 0 15.15-.83a5.67 5.67 0 0 0-3.67 1.9 5.3 5.3 0 0 0-1.3 3.84 4.68 4.68 0 0 0 3.7-1.75Z" />
+    </svg>
+  );
+}
+
+function AndroidIcon({ className }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="m17.6 9.48 1.84-3.18a.75.75 0 0 0-1.3-.75l-1.87 3.24A11.1 11.1 0 0 0 12 7.95c-1.5 0-2.94.3-4.27.84L5.86 5.55a.75.75 0 1 0-1.3.75L6.4 9.48A8.92 8.92 0 0 0 3 16.5h18a8.92 8.92 0 0 0-3.4-7.02ZM8 13.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm8 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2ZM3 17.5h18V21a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-3.5Z" />
+    </svg>
+  );
+}
 
 const categories = [
   {
@@ -68,6 +101,8 @@ export default function Header() {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isGuideDialogOpen, setIsGuideDialogOpen] = useState(false);
+  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
   const isLaptopL = useMediaQuery("(min-width: 1440px)");
   const isLargeDesktop = useMediaQuery(
     "(min-width: 1025px) and (max-width: 1208px)",
@@ -95,8 +130,18 @@ export default function Header() {
   };
 
   const openExternalLink = (path) => {
-    const url = praseLink(path);
+    const url = parseLink(path);
     if (url) window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const openGuideDialog = () => {
+    setIsUserMenuOpen(false);
+    setIsGuideDialogOpen(true);
+  };
+
+  const openDownloadDialog = () => {
+    setIsUserMenuOpen(false);
+    setIsDownloadDialogOpen(true);
   };
 
   const navigateCategory = (category) => {
@@ -282,11 +327,8 @@ export default function Header() {
                           <Button
                             variant="ghost"
                             className="h-auto w-full justify-start px-4 py-2"
-                            onClick={() =>
-                              openExternalLink(
-                                "/uploads/HDSD_WEBGIS_CAMPHA.pdf",
-                              )
-                            }
+                            id="usage-guide-auth-button"
+                            onClick={openGuideDialog}
                           >
                             <Book />
                             Hướng dẫn sử dụng
@@ -296,9 +338,8 @@ export default function Header() {
                           <Button
                             variant="soft-primary"
                             className="h-auto w-full justify-start px-4 py-2"
-                            onClick={() =>
-                              openExternalLink("/uploads/campha.apk")
-                            }
+                            id="download-app-auth-button"
+                            onClick={openDownloadDialog}
                           >
                             <Smartphone />
                             Tải ứng dụng
@@ -342,9 +383,8 @@ export default function Header() {
                         variant="outline"
                         size="icon-sm"
                         className="rounded-full"
-                        onClick={() =>
-                          openExternalLink("/uploads/HDSD_WEBGIS_CAMPHA.pdf")
-                        }
+                        id="usage-guide-guest-button"
+                        onClick={openGuideDialog}
                         aria-label="Hướng dẫn sử dụng"
                       >
                         <Book />
@@ -358,7 +398,8 @@ export default function Header() {
                         variant="soft-primary"
                         size="icon-sm"
                         className="rounded-full"
-                        onClick={() => openExternalLink("/uploads/campha.apk")}
+                        id="download-app-guest-button"
+                        onClick={openDownloadDialog}
                         aria-label="Tải ứng dụng"
                       >
                         <Smartphone />
@@ -394,6 +435,121 @@ export default function Header() {
           </div>
         </div>
       </div>
+
+      <Dialog open={isGuideDialogOpen} onOpenChange={setIsGuideDialogOpen}>
+        <DialogContent variant="default" className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Hướng dẫn sử dụng</DialogTitle>
+            <DialogDescription>
+              Chọn hướng dẫn phù hợp với nền tảng bạn đang sử dụng.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Button
+              id="open-webgis-guide-button"
+              type="button"
+              variant="outline"
+              onClick={() => {
+                openExternalLink("/uploads/HDSD_WEBGIS_CAMPHA.pdf");
+                setIsGuideDialogOpen(false);
+              }}
+              className="group h-auto justify-start gap-3 p-4 text-left whitespace-normal hover:border-primary hover:bg-(--primary-subtle)"
+            >
+              <Book className="size-8 text-primary transition-transform group-hover:scale-110" />
+              <span>
+                <span className="block text-sm font-normal text-muted-foreground">
+                  Hướng dẫn sử dụng
+                </span>
+                <span className="block font-semibold text-foreground">
+                  WebGIS
+                </span>
+              </span>
+            </Button>
+
+            <Button
+              id="open-mobile-guide-button"
+              type="button"
+              variant="outline"
+              onClick={() => {
+                openExternalLink(
+                  "https://apicampha.tourismpj.pro.vn/uploads/HDSD_MOBILE_CAMPHA.pdf",
+                );
+                setIsGuideDialogOpen(false);
+              }}
+              className="group h-auto justify-start gap-3 p-4 text-left whitespace-normal hover:border-primary hover:bg-(--primary-subtle)"
+            >
+              <Smartphone className="size-8 text-primary transition-transform group-hover:scale-110" />
+              <span>
+                <span className="block text-sm font-normal text-muted-foreground">
+                  Hướng dẫn sử dụng
+                </span>
+                <span className="block font-semibold text-foreground">
+                  Ứng dụng di động
+                </span>
+              </span>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isDownloadDialogOpen}
+        onOpenChange={setIsDownloadDialogOpen}
+      >
+        <DialogContent variant="default" className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Tải ứng dụng WebGIS Cẩm Phả</DialogTitle>
+            <DialogDescription>
+              Chọn nền tảng phù hợp với thiết bị của bạn.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Button
+              id="download-android-button"
+              type="button"
+              variant="outline"
+              onClick={() => {
+                openExternalLink("/uploads/campha.apk");
+                setIsDownloadDialogOpen(false);
+              }}
+              className="group h-auto justify-start gap-3 p-4 text-left whitespace-normal hover:border-primary hover:bg-(--primary-subtle)"
+            >
+              <AndroidIcon className="size-8 text-primary transition-transform group-hover:scale-110" />
+              <span>
+                <span className="block text-sm font-normal text-muted-foreground">
+                  Tải xuống cho
+                </span>
+                <span className="block font-semibold text-foreground">
+                  Android
+                </span>
+              </span>
+            </Button>
+
+            <Button
+              id="download-ios-testflight-button"
+              type="button"
+              variant="outline"
+              onClick={() => {
+                openExternalLink("https://testflight.apple.com/join/f38V4tTH");
+                setIsDownloadDialogOpen(false);
+              }}
+              className="group h-auto justify-start gap-3 p-4 text-left whitespace-normal hover:border-primary hover:bg-(--primary-subtle)"
+            >
+              <AppleIcon className="size-8 text-foreground transition-transform group-hover:scale-110" />
+              <span>
+                <span className="block text-sm font-normal text-muted-foreground">
+                  Cài đặt qua
+                </span>
+                <span className="block font-semibold text-foreground">
+                  Apple TestFlight
+                </span>
+              </span>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </header>
   );
 }

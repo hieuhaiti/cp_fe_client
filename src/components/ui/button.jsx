@@ -53,8 +53,6 @@ const buttonVariants = cva(
           "bg-(image:--gradient-info) text-(--gradient-foreground) [box-shadow:var(--gradient-action-shadow)] hover:-translate-y-0.5",
         "gradient-map":
           "bg-(image:--gradient-map) text-(--gradient-foreground) [box-shadow:var(--gradient-action-shadow)] hover:-translate-y-0.5",
-        "gradient-fire":
-          "bg-destructive [background-image:var(--gradient-fire)] text-(--gradient-fire-foreground) [box-shadow:var(--gradient-action-shadow)] hover:-translate-y-0.5 focus-visible:ring-destructive/20",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",

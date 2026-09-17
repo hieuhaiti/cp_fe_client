@@ -24,7 +24,7 @@ import PaginationCustom from "@/components/common/PaginationCustom";
 import { useGetAllNewsQuery } from "@/services/newsService";
 import { useDebounce } from "@/hooks/useDebounce";
 import NewsLayout from "../../layout/NewsLayout";
-import { cn, formatDate, praseLink } from "../../lib/utils";
+import { cn, formatDate, parseLink } from "../../lib/utils";
 import { SkeletonCard } from "./Skeleton";
 
 export default function NewsPage() {
@@ -191,7 +191,7 @@ export default function NewsPage() {
           {/* Error state */}
           {isError && (
             <div className="text-center py-12">
-              <p className="text-red-500 mb-4">Không thể tải dữ liệu tin tức</p>
+              <p className="mb-4 text-destructive">Không thể tải dữ liệu tin tức</p>
               <Button
                 variant="soft-warning"
                 onClick={() => window.location.reload()}
@@ -242,7 +242,7 @@ export default function NewsPage() {
                           <div className="relative h-52 shrink-0 overflow-hidden bg-muted sm:h-auto sm:min-h-56 sm:w-72">
                             {news.coverUrl ? (
                               <img
-                                src={praseLink(news.coverUrl)}
+                                src={parseLink(news.coverUrl)}
                                 alt={news.title}
                                 loading={index > 2 ? "lazy" : "eager"}
                                 className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100"

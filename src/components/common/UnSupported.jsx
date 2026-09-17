@@ -1,12 +1,12 @@
 import { memo } from "react";
 import { Monitor, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { praseLink } from "@/lib/utils";
+import { parseLink } from "@/lib/utils";
 import Header from "@/components/common/Header";
 
 function UnSupported() {
   const handleDownloadApp = () => {
-    const url = praseLink("/uploads/apk/gis-kon-tum.apk");
+    const url = parseLink("/uploads/campha.apk");
     if (!url) return;
     window.location.href = url;
   };

@@ -15,7 +15,7 @@ export function isHtmlContent(value) {
   return /<\/?[a-z][\s\S]*>/i.test(value || "");
 }
 
-export function praseLink(url) {
+export function parseLink(url) {
   if (!url) return "";
   if (url.startsWith("http://") || url.startsWith("https://")) {
     return url;

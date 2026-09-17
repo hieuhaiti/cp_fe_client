@@ -102,14 +102,6 @@
     var(--brand-sky) 72%,
     var(--brand-violet) 100%
   );
-  --gradient-fire: linear-gradient(
-    135deg,
-    #991b1b 0%,
-    var(--destructive) 38%,
-    #f97316 72%,
-    var(--warning) 100%
-  );
-  --gradient-fire-foreground: #ffffff;
   --gradient-accent: linear-gradient(
     135deg,
     var(--brand-violet) 0%,
@@ -346,14 +338,6 @@
     var(--brand-sky) 72%,
     var(--brand-violet) 100%
   );
-  --gradient-fire: linear-gradient(
-    135deg,
-    #7f1d1d 0%,
-    var(--destructive) 38%,
-    #fb923c 72%,
-    var(--warning) 100%
-  );
-  --gradient-fire-foreground: #ffffff;
   --gradient-accent: linear-gradient(
     135deg,
     var(--brand-violet) 0%,

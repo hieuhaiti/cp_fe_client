@@ -52,19 +52,21 @@ export default function FloatButton() {
       </Tooltip>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden p-0 sm:max-w-2xl">
+          <DialogHeader className="shrink-0 border-b border-border px-4 pb-4 pt-5 pr-12 text-left sm:px-6 sm:pt-6">
             <DialogTitle>Gửi phản ánh hiện trường</DialogTitle>
             <DialogDescription>
               Gửi thông tin kèm tọa độ và hình ảnh để cơ quan chức năng tiếp
               nhận xử lý.
             </DialogDescription>
           </DialogHeader>
-          <FeedbackForm
-            initialCoordinates={initialCoordinates}
-            onSuccess={() => setOpen(false)}
-            onCancel={() => setOpen(false)}
-          />
+          <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-4 sm:px-6 sm:pb-6">
+            <FeedbackForm
+              initialCoordinates={initialCoordinates}
+              onSuccess={() => setOpen(false)}
+              onCancel={() => setOpen(false)}
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </>

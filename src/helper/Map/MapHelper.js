@@ -5,7 +5,7 @@ import {
   GEOSERVER_POINT_PAINT,
 } from "@/constant/geoserverData";
 import MapboxDraw from "@mapbox/mapbox-gl-draw";
-import { praseLink } from "@/lib/utils";
+import { parseLink } from "@/lib/utils";
 import {
   buildOgcPointLayerIds,
   buildOgcVectorLayerIds,
@@ -477,7 +477,7 @@ function isIconUrl(value) {
 const resolveSvgContent = async (icon) => {
   if (!icon) return "";
   if (isIconUrl(icon)) {
-    const fullUrl = praseLink(icon);
+    const fullUrl = parseLink(icon);
     const res = await fetch(fullUrl);
     if (!res.ok) throw new Error(`Không thể tải SVG: ${fullUrl}`);
     return res.text();
