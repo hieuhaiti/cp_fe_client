@@ -532,7 +532,7 @@ export default function Header() {
               type="button"
               variant="outline"
               onClick={() => {
-                openExternalLink("https://testflight.apple.com/join/f38V4tTH");
+                openExternalLink("https://testflight.apple.com/join/pxJSd11D");
                 setIsDownloadDialogOpen(false);
               }}
               className="group h-auto justify-start gap-3 p-4 text-left whitespace-normal hover:border-primary hover:bg-(--primary-subtle)"
