@@ -40,19 +40,38 @@ const HIDDEN_PROPERTY_KEYS = new Set([
   "the_geom",
   "bbox",
   "layer_code",
+  "layercode",
   "geoserver_layer",
+  "geoserverlayer",
   "geoserver_store",
+  "geoserverstore",
   "geoserver_url",
+  "geoserverurl",
   "workspace",
   "coverage_key",
+  "coveragekey",
   "srid",
   "epsg_code",
+  "epsgcode",
   "slug",
   "layer_kind",
+  "layerkind",
   "source_format",
+  "sourceformat",
   "file_object_id",
+  "fileobjectid",
   "cleanup_status",
+  "cleanupstatus",
+  "storage_kind",
+  "storagekind",
+  "minio_bucket",
+  "miniobucket",
+  "minio_key",
+  "miniokey",
 ]);
+
+const INFRASTRUCTURE_KEY_REGEX =
+  /^(geoserver|mapproxy|minio|coverage_?key|srid|epsg|cleanup_?status|storage_?kind)/i;
 
 const IMAGE_PROPERTY_KEYS = new Set([
   "image",
@@ -555,7 +574,8 @@ export function MapLayerDetailModal() {
         const normalizedKey = String(key).toLowerCase();
         return (
           !HIDDEN_PROPERTY_KEYS.has(normalizedKey) &&
-          !IMAGE_PROPERTY_KEYS.has(normalizedKey)
+          !IMAGE_PROPERTY_KEYS.has(normalizedKey) &&
+          !INFRASTRUCTURE_KEY_REGEX.test(normalizedKey)
         );
       }),
     [properties],

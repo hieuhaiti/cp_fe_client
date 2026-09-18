@@ -203,3 +203,7 @@ export const useMapStore = create((set, get) => ({
   },
 
 }));
+
+if (typeof window !== 'undefined') {
+  window.__mapStore = useMapStore;
+}

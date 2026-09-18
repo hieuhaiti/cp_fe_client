@@ -992,7 +992,18 @@ export default function MapComponent() {
     const prevKeys = prevOgcKeysRef.current.single;
 
     currentKeys.forEach((sourceId) => {
-      addOrUpdateGeoServerLayer(map, sourceId, ogcLayersData[sourceId], true);
+      const addLayer = addOrUpdateGeoServerLayer(
+        map,
+        sourceId,
+        ogcLayersData[sourceId],
+        true,
+      );
+      void Promise.resolve(addLayer).then(() => {
+        const latestState = useMapStore.getState();
+        if (!latestState.ogcLayersData?.[sourceId]) {
+          removeGeoServerLayer(map, sourceId);
+        }
+      });
     });
 
     prevKeys.forEach((sourceId) => {

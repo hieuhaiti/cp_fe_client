@@ -48,6 +48,8 @@ import {
   deactivateFloodScenario,
 } from "@/features/flood/scenarioSelection";
 
+import { useMapStore } from "@/stores/Map/useMapStore";
+
 function fmt(val, unit) {
   if (val == null) return null;
   return `${parseFloat(val)} ${unit}`;
@@ -91,18 +93,32 @@ function ScenarioItem({ scenario, selected, onSelect }) {
           <RadioIndicator selected={selected} disabled={!hasLayer} />
           <span className="min-w-0 flex-1">
             <span className="flex items-center justify-between gap-1">
-              <span className="truncate text-sm font-semibold text-foreground">{scenario.code ? `[${scenario.code}] ` : ""}{scenario.name_vi}</span>
+              <span className="truncate text-sm font-semibold text-foreground">{scenario.name_vi}</span>
               {scenario.frequency && <Badge variant="outline" className="px-1.5 py-0 text-[10px]">{scenario.frequency}</Badge>}
             </span>
             <span className="block truncate text-xs text-muted-foreground mt-0.5">
-              <span>{rainfallLabel}</span>{tideLabel && ` · Triều ${tideLabel}`}
+              <span>Mưa {rainfallLabel}</span>{tideLabel && ` · Triều ${tideLabel}`}
               {!hasLayer && <span className="ml-1 inline-flex items-center gap-0.5 text-amber-600 dark:text-amber-400"><AlertCircle className="h-3 w-3" />Chưa có lớp bản đồ</span>}
             </span>
           </span>
         </div>
       </TooltipTrigger>
-      <TooltipContent side="right" className="max-w-xs">
-        {!hasLayer ? <span className="text-amber-500">Lớp "{scenario.layer_code}" chưa sẵn sàng trên bản đồ.</span> : <div className="space-y-0.5 text-xs"><div className="font-semibold">{scenario.name_vi}</div>{scenario.layer?.nameVi && <div className="text-muted-foreground flex items-center gap-1"><Layers className="h-3 w-3" />{scenario.layer.nameVi}</div>}<div className="text-[11px] text-muted-foreground">Nhấp để hiển thị kịch bản ngập này trên bản đồ.</div></div>}
+      <TooltipContent side="right" sideOffset={6} className="max-w-xs p-2.5">
+        {!hasLayer ? (
+          <span className="text-amber-600 dark:text-amber-400 font-medium leading-relaxed">
+            Lớp "{scenario.layer_code}" chưa sẵn sàng trên bản đồ.
+          </span>
+        ) : (
+          <div className="space-y-1 text-xs">
+            <div className="font-semibold text-popover-foreground">{scenario.name_vi}</div>
+            {scenario.layer?.nameVi && (
+              <div className="text-muted-foreground flex items-center gap-1.5">
+                <Layers className="h-3.5 w-3.5 shrink-0 text-primary" />
+                <span>{scenario.layer.nameVi}</span>
+              </div>
+            )}
+          </div>
+        )}
       </TooltipContent>
     </Tooltip>
   );
@@ -112,7 +128,7 @@ export default function FloodScenarioPanel() {
   const [open, setOpen] = useState(false);
   const [selectedType, setSelectedType] = useState("hien_trang");
   const [selectedRcp, setSelectedRcp] = useState("rcp45");
-  const [activeScenario, setActiveScenarioLocal] = useState(null);
+  const activeScenario = useMapStore((s) => s.activeFloodScenario);
   const isActive = activeScenario != null;
   const scenariosQuery = useGetFloodScenariosQuery();
 
@@ -134,45 +150,68 @@ export default function FloodScenarioPanel() {
   // Xử lý chọn/bỏ chọn kịch bản (chỉ xem được 1 kịch bản 1 lúc)
   const handleSelectScenario = useCallback(
     (scenario) => {
-      // Nếu click lại kịch bản đang active -> Tắt kịch bản
+      // Nếu click lại kịch bản đang active -> Tắt kịch bản hoàn toàn
       if (activeScenario?.id === scenario.id) {
         deactivateFloodScenario();
-        setActiveScenarioLocal(null);
         return;
       }
 
-      // Kích hoạt kịch bản mới (hàm tự động gỡ bỏ layer cũ)
-      const activated = activateSingleFloodScenario(scenario);
-      if (activated) {
-        setActiveScenarioLocal(activated);
-      }
+      // Kích hoạt kịch bản mới (tự động dọn dẹp sạch sẽ kịch bản cũ)
+      activateSingleFloodScenario(scenario);
     },
     [activeScenario],
   );
 
-  // Khi người dùng đổi loại kịch bản qua dropdown -> Dọn dẹp layer cũ nếu không thuộc loại mới
-  const handleTypeChange = useCallback((newType) => {
-    setSelectedType(newType);
-    deactivateFloodScenario();
-    setActiveScenarioLocal(null);
-  }, []);
+  // Khi người dùng đổi loại kịch bản qua dropdown -> Dọn dẹp layer cũ và kích hoạt kịch bản đầu tiên của loại mới
+  const handleTypeChange = useCallback(
+    (newType) => {
+      setSelectedType(newType);
+      // Tắt hoàn toàn kịch bản cũ (cả state lẫn layer trên map)
+      deactivateFloodScenario();
 
-  const handleRcpChange = useCallback((newRcp) => {
-    setSelectedRcp(newRcp);
-    deactivateFloodScenario();
-    setActiveScenarioLocal(null);
-  }, []);
+      // Tự động kích hoạt kịch bản đầu tiên của loại kịch bản mới nếu có
+      const nextCandidates = filterScenariosByType(
+        allScenarios,
+        newType,
+        newType === "quy_hoach" ? selectedRcp : null,
+      ).filter((s) => s.is_active && s.layer != null);
+
+      if (nextCandidates.length > 0) {
+        activateSingleFloodScenario(nextCandidates[0]);
+      }
+    },
+    [allScenarios, selectedRcp],
+  );
+
+  const handleRcpChange = useCallback(
+    (newRcp) => {
+      setSelectedRcp(newRcp);
+      // Tắt hoàn toàn kịch bản cũ (cả state lẫn layer trên map)
+      deactivateFloodScenario();
+
+      // Tự động kích hoạt kịch bản đầu tiên của nhánh RCP mới nếu có
+      const nextCandidates = filterScenariosByType(
+        allScenarios,
+        "quy_hoach",
+        newRcp,
+      ).filter((s) => s.is_active && s.layer != null);
+
+      if (nextCandidates.length > 0) {
+        activateSingleFloodScenario(nextCandidates[0]);
+      }
+    },
+    [allScenarios],
+  );
 
   const handleDeactivate = useCallback(() => {
     deactivateFloodScenario();
-    setActiveScenarioLocal(null);
   }, []);
 
-  // Tự động kích hoạt kịch bản đầu tiên của nhóm khi vừa tải (nếu chưa có gì active)
-  const autoActivatedRef = useRef(false);
+  // Tự động kích hoạt kịch bản đầu tiên khi vừa tải dữ liệu lần đầu
+  const initialActivatedRef = useRef(false);
   useEffect(() => {
     if (
-      autoActivatedRef.current ||
+      initialActivatedRef.current ||
       activeScenario ||
       filteredScenarios.length === 0
     ) {
@@ -183,11 +222,9 @@ export default function FloodScenarioPanel() {
     );
     if (candidates.length === 0) return;
 
-    autoActivatedRef.current = true;
-    queueMicrotask(() => {
-      handleSelectScenario(candidates[0]);
-    });
-  }, [filteredScenarios, activeScenario, handleSelectScenario]);
+    initialActivatedRef.current = true;
+    activateSingleFloodScenario(candidates[0]);
+  }, [filteredScenarios, activeScenario]);
 
   return (
     <div className="space-y-3">

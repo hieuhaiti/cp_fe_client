@@ -23,15 +23,10 @@ export function activateSingleFloodScenario(scenario) {
   const inlineLayer = scenario.layer;
   if (!inlineLayer) return null;
 
-  const store = useMapStore.getState();
+  // 1. Dọn dẹp sạch sẽ kịch bản cũ (cả store lẫn layer trên Mapbox)
+  deactivateFloodScenario();
 
-  // 1. Dọn dẹp tất cả các source flood cũ trong ogcLayersData
-  const currentOgc = store.ogcLayersData || {};
-  Object.keys(currentOgc).forEach((key) => {
-    if (key.startsWith('flood-scenario-')) {
-      store.removeOgcLayerData(key);
-    }
-  });
+  const store = useMapStore.getState();
 
   // 2. Chuẩn hóa layer
   const normalizedLayer = normalizeWebMapLayer({
@@ -70,9 +65,12 @@ export function activateSingleFloodScenario(scenario) {
 
 /**
  * Hủy kích hoạt kịch bản ngập đang hiển thị
+ * Xóa sạch cả state trong Zustand store lẫn dữ liệu lớp và source trực tiếp trên Mapbox Map
  */
 export function deactivateFloodScenario() {
   const store = useMapStore.getState();
+
+  // 1. Dọn dẹp tất cả các source flood trong ogcLayersData và clear activeFloodScenario
   const currentOgc = store.ogcLayersData || {};
   Object.keys(currentOgc).forEach((key) => {
     if (key.startsWith('flood-scenario-')) {
@@ -80,4 +78,35 @@ export function deactivateFloodScenario() {
     }
   });
   store.clearActiveFloodScenario();
+
+  // 2. Trực tiếp dỡ bỏ tất cả layer và source của flood-scenario trên Mapbox instance
+  const mapObj = store.mapRefObj?.current;
+  const maps = [mapObj?.single, mapObj?.split, store.mapInstance].filter(Boolean);
+  maps.forEach((map) => {
+    try {
+      if (typeof map.getStyle !== 'function') return;
+      const style = map.getStyle();
+      if (!style) return;
+
+      // Xóa tất cả các layer liên quan đến flood scenario
+      (style.layers || []).forEach((l) => {
+        if (l.id.includes('flood-scenario-') || l.source?.includes('flood-scenario-')) {
+          if (map.getLayer(l.id)) {
+            map.removeLayer(l.id);
+          }
+        }
+      });
+
+      // Xóa tất cả các source liên quan đến flood scenario
+      Object.keys(style.sources || {}).forEach((sId) => {
+        if (sId.includes('flood-scenario-')) {
+          if (map.getSource(sId)) {
+            map.removeSource(sId);
+          }
+        }
+      });
+    } catch (error) {
+      console.warn('Lỗi khi xóa lớp kịch bản ngập trên bản đồ:', error?.message);
+    }
+  });
 }
