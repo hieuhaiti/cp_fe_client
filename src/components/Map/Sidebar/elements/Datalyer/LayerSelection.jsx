@@ -533,6 +533,7 @@ export function LayerSelection() {
   const allCategoryGroups = useMemo(() => {
     const groups = new Map();
     ogcLayers.forEach((layer) => {
+      if (layer.categoryIsVisible === false) return;
       const key = layer.category || "uncategorized";
       if (BLOCKED_CATEGORIES.has(key)) return;
       const group = groups.get(key) || {
@@ -596,7 +597,7 @@ export function LayerSelection() {
     return filteredCategoryGroups.every((g) => {
       const isOpen = isSearchActive
         ? (openOverrides[g.key] ?? true)
-        : (openOverrides[g.key] ?? false);
+        : (openOverrides[g.key] ?? true);
       return isOpen;
     });
   }, [filteredCategoryGroups, isSearchActive, openOverrides]);
@@ -780,7 +781,7 @@ export function LayerSelection() {
           filteredCategoryGroups.map((group) => {
             const isGroupOpen = isSearchActive
               ? (openOverrides[group.key] ?? true)
-              : (openOverrides[group.key] ?? false);
+              : (openOverrides[group.key] ?? true);
 
             return (
               <CategoryGroup

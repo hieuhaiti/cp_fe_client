@@ -460,18 +460,23 @@ function LegendPreview({ legend }) {
   if (!entries.length) return null;
   return (
     <span className="mt-1.5 flex items-center gap-1" aria-label="Màu chú giải">
-      {entries.slice(0, 6).map((entry, index) => (
-        <span
-          key={`${entry.color}-${entry.value ?? index}`}
-          className="size-2.5 rounded-sm border border-border/70"
-          style={{ backgroundColor: entry.color || "transparent" }}
-          title={
-            entry.label?.vi ||
-            entry.label?.en ||
-            (entry.value != null ? String(entry.value) : undefined)
-          }
-        />
-      ))}
+      {entries.slice(0, 6).map((entry, index) => {
+        const text =
+          entry.label?.vi ||
+          entry.label?.en ||
+          (entry.value != null ? String(entry.value) : undefined);
+        return (
+          <Tooltip key={`${entry.color}-${entry.value ?? index}`}>
+            <TooltipTrigger asChild>
+              <span
+                className="size-2.5 rounded-sm border border-border/70"
+                style={{ backgroundColor: entry.color || "transparent" }}
+              />
+            </TooltipTrigger>
+            {text && <TooltipContent side="top">{text}</TooltipContent>}
+          </Tooltip>
+        );
+      })}
       <span className="ml-1 text-[10px] text-muted-foreground">
         Chú giải hiển thị trên bản đồ
       </span>

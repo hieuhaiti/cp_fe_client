@@ -145,10 +145,10 @@ export default function HierarchicalPeriodAccordion({
   return (
     <div className="w-full min-w-0 max-w-full overflow-hidden box-border rounded-xl border border-border/80 bg-background/95 p-2.5 shadow-xs text-xs space-y-2">
       {/* Search Input Box */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="relative w-full min-w-0">
-            <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+      <div className="relative w-full min-w-0">
+        <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+        <Tooltip>
+          <TooltipTrigger asChild>
             <input
               type="text"
               value={searchQuery}
@@ -156,22 +156,27 @@ export default function HierarchicalPeriodAccordion({
               placeholder="Tìm kỳ theo ngày, tháng, năm..."
               className="w-full min-w-0 box-border rounded-lg border border-border/70 bg-muted/30 py-1.5 pl-8 pr-7 text-xs text-foreground placeholder:text-muted-foreground/70 focus:border-info focus:bg-background focus:outline-hidden focus:ring-1 focus:ring-info transition-colors"
             />
-            {searchQuery && (
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            Tìm kỳ giám sát theo ngày, tháng, năm hoặc trạng thái
+          </TooltipContent>
+        </Tooltip>
+        {searchQuery && (
+          <Tooltip>
+            <TooltipTrigger asChild>
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded transition-colors"
-                title="Xóa tìm kiếm"
+                aria-label="Xóa tìm kiếm"
               >
                 <X className="size-3.5" />
               </button>
-            )}
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">
-          Tìm kỳ giám sát theo ngày, tháng, năm hoặc trạng thái
-        </TooltipContent>
-      </Tooltip>
+            </TooltipTrigger>
+            <TooltipContent side="top">Xóa tìm kiếm</TooltipContent>
+          </Tooltip>
+        )}
+      </div>
 
       {/* Control Bar: Counter & Fast Actions */}
       <div className="flex items-center justify-between gap-1 text-[11px] px-0.5">

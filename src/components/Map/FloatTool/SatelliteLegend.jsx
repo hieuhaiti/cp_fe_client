@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, Map, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { LAYER_CONFIG } from "@/components/Map/Sidebar/elements/SatelliteControll/shared/layerConfig";
 import { formatDateRange } from "@/components/Map/Sidebar/elements/SatelliteControll/shared/utils";
 import { fmtKm2 } from "@/lib/utils";
@@ -179,10 +180,14 @@ function toMapLegendGroup(id, layer) {
 
   const rawSubtitle = layer?.subtitle || layer?.category_name || "";
 
+  const title = isCodeLike(rawTitle) ? rawSubtitle || "Lớp bản đồ" : rawTitle;
+  const subtitle =
+    isCodeLike(rawSubtitle) || rawSubtitle === title ? "" : rawSubtitle;
+
   return {
     id,
-    title: isCodeLike(rawTitle) ? rawSubtitle || "Lớp bản đồ" : rawTitle,
-    subtitle: isCodeLike(rawSubtitle) ? "" : rawSubtitle,
+    title,
+    subtitle,
     markerColor: items[0]?.color,
     items,
   };
@@ -342,61 +347,81 @@ export function MapLegend() {
   // Khi đã ẩn: hiển thị pill nhỏ gọn để mở lại chú giải
   if (hidden) {
     return (
-      <Button
-        type="button"
-        variant="soft-primary"
-        size="sm"
-        onClick={() => setHidden(false)}
-        className="h-8 gap-1.5 rounded-lg border border-border bg-card/95 px-3 text-xs shadow-md backdrop-blur-md"
-        title="Hiện chú giải bản đồ"
-      >
-        <Map className="shrink-0 text-primary" size={13} />
-        <span className="max-w-30 truncate">Chú giải bản đồ</span>
-        <span className="shrink-0 rounded-full bg-primary/10 px-1.5 text-[10px] font-semibold text-primary">
-          {groups.length}
-        </span>
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="soft-primary"
+            size="sm"
+            onClick={() => setHidden(false)}
+            className="h-8 gap-1.5 rounded-lg border border-border bg-card/95 px-3 text-xs shadow-md backdrop-blur-md"
+            aria-label="Hiện chú giải bản đồ"
+          >
+            <Map className="shrink-0 text-primary" size={13} />
+            <span className="max-w-30 truncate">Chú giải bản đồ</span>
+            <span className="shrink-0 rounded-full bg-primary/10 px-1.5 text-[10px] font-semibold text-primary">
+              {groups.length}
+            </span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top">Hiện chú giải bản đồ</TooltipContent>
+      </Tooltip>
     );
   }
 
   return (
     <div className="w-64 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-xl border border-border/80 bg-card/95 shadow-xl backdrop-blur-md transition-all duration-200 sm:w-72">
       <div className="flex select-none items-center justify-between gap-1.5 border-b border-border/40 bg-muted/30 px-3 py-2">
-        <button
-          type="button"
-          onClick={() => setCollapsed((value) => !value)}
-          className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left transition-opacity hover:opacity-80"
-          aria-expanded={!collapsed}
-          title={collapsed ? "Mở rộng chú giải" : "Thu gọn chú giải"}
-        >
-          <Map className="shrink-0 text-primary" size={13} />
-          <span className="truncate text-xs font-semibold text-foreground">
-            Chú giải bản đồ
-          </span>
-          <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-            {groups.length}
-          </span>
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={() => setCollapsed((value) => !value)}
+              className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left transition-opacity hover:opacity-80"
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? "Mở rộng chú giải" : "Thu gọn chú giải"}
+            >
+              <Map className="shrink-0 text-primary" size={13} />
+              <span className="truncate text-xs font-semibold text-foreground">
+                Chú giải bản đồ
+              </span>
+              <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                {groups.length}
+              </span>
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            {collapsed ? "Mở rộng chú giải" : "Thu gọn chú giải"}
+          </TooltipContent>
+        </Tooltip>
 
         <div className="flex shrink-0 items-center gap-0.5">
-          <button
-            type="button"
-            onClick={() => setCollapsed((value) => !value)}
-            className="cursor-pointer rounded-md p-1 text-foreground/50 transition-colors hover:bg-accent hover:text-foreground"
-            title={collapsed ? "Mở rộng" : "Thu gọn"}
-            aria-label={collapsed ? "Mở rộng chú giải" : "Thu gọn chú giải"}
-          >
-            {collapsed ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-          </button>
-          <button
-            type="button"
-            onClick={() => setHidden(true)}
-            className="cursor-pointer rounded-md p-1 text-foreground/50 transition-colors hover:bg-destructive/10 hover:text-destructive"
-            title="Ẩn chú giải"
-            aria-label="Ẩn chú giải"
-          >
-            <X size={13} />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => setCollapsed((value) => !value)}
+                className="cursor-pointer rounded-md p-1 text-foreground/50 transition-colors hover:bg-accent hover:text-foreground"
+                aria-label={collapsed ? "Mở rộng chú giải" : "Thu gọn chú giải"}
+              >
+                {collapsed ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">{collapsed ? "Mở rộng" : "Thu gọn"}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => setHidden(true)}
+                className="cursor-pointer rounded-md p-1 text-foreground/50 transition-colors hover:bg-destructive/10 hover:text-destructive"
+                aria-label="Ẩn chú giải"
+              >
+                <X size={13} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Ẩn chú giải</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 

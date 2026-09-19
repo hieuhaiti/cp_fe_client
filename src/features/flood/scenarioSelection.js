@@ -1,6 +1,7 @@
 // @ts-check
 import { useMapStore } from '@/stores/Map/useMapStore';
 import { normalizeWebMapLayer } from '@/services/mapLayersService';
+import { formatRainfallRange, formatTideRange } from './helpers';
 
 /**
  * Tạo source ID chuẩn cho layer kịch bản ngập
@@ -9,6 +10,33 @@ import { normalizeWebMapLayer } from '@/services/mapLayersService';
  */
 export function makeFloodSourceId(scenarioId) {
   return `flood-scenario-${scenarioId}`;
+}
+
+/**
+ * Tạo subtitle cho kịch bản ngập:
+ * - Mưa: ưu tiên current_rainfall, nếu null thì fallback dải min_rainfall – max_rainfall
+ * - Triều: ưu tiên current_tide, nếu null thì fallback dải min_tide – max_tide
+ * @param {any} scenario
+ * @returns {string}
+ */
+export function buildFloodScenarioSubtitle(scenario) {
+  if (!scenario) return '';
+
+  const rainVal =
+    scenario.current_rainfall != null
+      ? `${parseFloat(scenario.current_rainfall)} mm`
+      : formatRainfallRange(scenario.min_rainfall, scenario.max_rainfall);
+
+  const tideFallback = formatTideRange(scenario.min_tide, scenario.max_tide);
+  const tideVal =
+    scenario.current_tide != null
+      ? `${parseFloat(scenario.current_tide)} m`
+      : tideFallback;
+
+  const parts = [];
+  if (rainVal) parts.push(`Mưa ${rainVal}`);
+  if (tideVal) parts.push(`Triều ${tideVal}`);
+  return parts.join(' · ');
 }
 
 /**
@@ -28,11 +56,18 @@ export function activateSingleFloodScenario(scenario) {
 
   const store = useMapStore.getState();
 
+  const title =
+    scenario.name_vi || scenario.nameVi || inlineLayer.nameVi || inlineLayer.name_vi;
+  const subtitle = buildFloodScenarioSubtitle(scenario);
+
   // 2. Chuẩn hóa layer
   const normalizedLayer = normalizeWebMapLayer({
+    ...inlineLayer,
     id: inlineLayer.id,
     code: inlineLayer.code,
-    name_vi: inlineLayer.nameVi || inlineLayer.name_vi,
+    name_vi: title,
+    title,
+    subtitle,
     category: inlineLayer.category || 'flood',
     category_name: inlineLayer.categoryName || inlineLayer.category_name || 'Ngập lụt',
     geometry_type: inlineLayer.geometryType || inlineLayer.geometry_type || 'Polygon',

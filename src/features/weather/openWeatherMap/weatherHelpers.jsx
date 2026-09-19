@@ -12,7 +12,7 @@ import {
   CloudSun,
   CloudMoon,
 } from "lucide-react";
-import * as Tooltip from "@radix-ui/react-tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 import icFaceGreen from "@/assets/aqi-icon/ic-face-green.svg";
 import icFaceOrange from "@/assets/aqi-icon/ic-face-orange.svg";
@@ -107,15 +107,12 @@ export function getIcon(icon, className = "") {
   const iconWithSize = React.cloneElement(el, { className: mergedClass });
 
   return (
-    <Tooltip.Root>
-      <Tooltip.Trigger asChild>{iconWithSize}</Tooltip.Trigger>
-      <Tooltip.Content
-        side="top"
-        className="rounded bg-black/80 text-white px-2 py-1 text-xs"
-      >
+    <Tooltip>
+      <TooltipTrigger asChild>{iconWithSize}</TooltipTrigger>
+      <TooltipContent side="top">
         {label}
-      </Tooltip.Content>
-    </Tooltip.Root>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
