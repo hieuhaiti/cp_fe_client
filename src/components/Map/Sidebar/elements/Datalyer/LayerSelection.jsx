@@ -6,10 +6,8 @@ import {
   Layers,
   Search,
   X,
-  RotateCcw,
   CheckCheck,
   ChevronsUpDown,
-  Filter,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -597,7 +595,7 @@ export function LayerSelection() {
     return filteredCategoryGroups.every((g) => {
       const isOpen = isSearchActive
         ? (openOverrides[g.key] ?? true)
-        : (openOverrides[g.key] ?? true);
+        : (openOverrides[g.key] ?? false);
       return isOpen;
     });
   }, [filteredCategoryGroups, isSearchActive, openOverrides]);
@@ -781,7 +779,7 @@ export function LayerSelection() {
           filteredCategoryGroups.map((group) => {
             const isGroupOpen = isSearchActive
               ? (openOverrides[group.key] ?? true)
-              : (openOverrides[group.key] ?? true);
+              : (openOverrides[group.key] ?? false);
 
             return (
               <CategoryGroup

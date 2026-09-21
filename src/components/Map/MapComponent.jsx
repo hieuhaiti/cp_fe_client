@@ -277,6 +277,14 @@ export default function MapComponent() {
       map.setMaxBounds(mapBounds);
 
       // Add Map Controls (only to single map).
+      map.addControl(
+        new mapboxgl.NavigationControl({
+          showCompass: true,
+          showZoom: true,
+          visualizePitch: true,
+        }),
+        "bottom-left",
+      );
       map.addControl(new mapboxgl.FullscreenControl(), "bottom-right");
       map.addControl(
         new ResetControl(() => useMapStyleStore.getState().terrainState),
@@ -291,8 +299,17 @@ export default function MapComponent() {
       setMapsReady((prev) => ({ ...prev, split: true }));
     };
 
-    map.on("load", handleSingleLoad);
-    mapRef.current.split.on("load", handleSplitLoad);
+    if (map.loaded()) {
+      handleSingleLoad();
+    } else {
+      map.once("load", handleSingleLoad);
+    }
+
+    if (mapRef.current.split?.loaded()) {
+      handleSplitLoad();
+    } else {
+      mapRef.current.split?.once("load", handleSplitLoad);
+    }
 
     const handleSingleMove = () => {
       const center = map.getCenter();
