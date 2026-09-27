@@ -21,6 +21,10 @@ import {
   useGetUnreadCountQuery,
 } from "@/services/notificationService";
 import { useNotificationWebSocket } from "@/hooks/useNotificationWebSocket";
+import {
+  formatNotificationBody,
+  formatNotificationTitle,
+} from "@/lib/uiTerminology";
 import { cn, formatDateTime } from "@/lib/utils";
 
 const params = { page: 1, limit: 10, unreadOnly: false };
@@ -60,9 +64,13 @@ function getNotificationPath(notification) {
     type.startsWith("hydro_") ||
     (typeof title === "string" && title.includes("kịch bản thủy văn"))
   ) {
-    return "https://admincampha.tourismpj.pro.vn/flood";
+    return "/map";
   }
-  if (channel === "feedback" || notification?.type?.startsWith("field_report_")) {
+  if (
+    channel === "feedback" ||
+    notification?.type?.startsWith("field_report_") ||
+    notification?.type?.startsWith("feedback_")
+  ) {
     return "/feedback/mine";
   }
   if (channel === "comment") {
@@ -113,8 +121,8 @@ export default function NotificationMenu({ enabled = true }) {
       refreshNotifications();
       if (!open) {
         const notif = message.data || {};
-        const title = notif.title || "";
-        const body = notif.body || "";
+        const title = formatNotificationTitle(notif);
+        const body = formatNotificationBody(notif);
         const createdAt =
           notif.created_at ||
           notif.createdAt ||
@@ -263,7 +271,7 @@ export default function NotificationMenu({ enabled = true }) {
             >
               <div className="flex w-full items-start gap-2">
                 <p className="min-w-0 flex-1 text-sm font-semibold text-foreground">
-                  {notification.title || "Thông báo"}
+                  {formatNotificationTitle(notification)}
                 </p>
                 {!isNotificationRead(notification) && (
                   <span className="mt-2 size-2 shrink-0 rounded-full bg-primary" />
@@ -290,7 +298,7 @@ export default function NotificationMenu({ enabled = true }) {
               </div>
               {notification.body && (
                 <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
-                  {notification.body}
+                  {formatNotificationBody(notification)}
                 </p>
               )}
               <time className="text-[11px] text-muted-foreground">

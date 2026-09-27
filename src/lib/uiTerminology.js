@@ -55,3 +55,122 @@ export function neutralizeUiMessage(value) {
 
   return text;
 }
+
+/**
+ * Danh sách nhãn trạng thái phản ánh hiện trường chuẩn hóa tiếng Việt.
+ */
+export const FEEDBACK_STATUS_LABELS = {
+  pending: "Chờ tiếp nhận",
+  under_review: "Đang xem xét",
+  approved: "Đã phê duyệt",
+  resolved: "Đã xử lý",
+  rejected: "Đã từ chối",
+  new: "Chờ tiếp nhận",
+  in_progress: "Đang xem xét",
+};
+
+/**
+ * Danh sách nhãn loại thông báo chuẩn hóa tiếng Việt.
+ */
+export const NOTIFICATION_TYPE_TITLES = {
+  field_report_status_changed: "Cập nhật phản ánh",
+  field_report_created: "Phản ánh hiện trường mới",
+  feedback_status_changed: "Cập nhật phản ánh",
+  feedback_created: "Phản ánh mới",
+  feedback_resolved: "Phản ánh đã xử lý",
+  feedback_flood_report: "Phản ánh ngập lụt",
+  forest_snapshot_completed: "Phân loại rừng hoàn tất",
+  forest_snapshot_failed: "Phân loại rừng thất bại",
+  flood_run_succeeded: "Cảnh báo ngập lụt",
+  flood_run_failed: "Phân tích ngập lụt thất bại",
+  hydro_scenario_triggered: "Cảnh báo kịch bản thủy văn",
+  news_published: "Tin tức mới xuất bản",
+  comment_created: "Bình luận mới",
+  comment_approved: "Bình luận đã duyệt",
+  comment_rejected: "Bình luận bị từ chối",
+  comment_removed: "Bình luận bị gỡ",
+  announcement: "Thông báo hệ thống",
+  general: "Thông báo",
+};
+
+/**
+ * Chuyển đổi mã trạng thái phản ánh hiện trường sang tiếng Việt.
+ *
+ * @param {string | null | undefined} status
+ * @returns {string}
+ */
+export function formatFeedbackStatus(status) {
+  if (!status || typeof status !== "string") return "";
+  const key = status.trim().toLowerCase();
+  return FEEDBACK_STATUS_LABELS[key] || status;
+}
+
+/**
+ * Chuẩn hóa tiêu đề thông báo hiển thị cho người dùng.
+ *
+ * @param {unknown} notification
+ * @returns {string}
+ */
+export function formatNotificationTitle(notification) {
+  const rawTitle = typeof notification === "string" ? notification : notification?.title;
+  const type = typeof notification === "object" ? notification?.type : "";
+
+  if (rawTitle && typeof rawTitle === "string" && rawTitle.trim()) {
+    const trimmed = rawTitle.trim();
+    if (NOTIFICATION_TYPE_TITLES[trimmed]) {
+      return NOTIFICATION_TYPE_TITLES[trimmed];
+    }
+    return neutralizeUiMessage(trimmed);
+  }
+
+  if (type && NOTIFICATION_TYPE_TITLES[type]) {
+    return NOTIFICATION_TYPE_TITLES[type];
+  }
+
+  return "Thông báo";
+}
+
+/**
+ * Chuẩn hóa nội dung thông báo hiển thị cho người dùng:
+ * Dịch các mã trạng thái phản ánh hiện trường từ tiếng Anh sang tiếng Việt
+ * và làm sạch thuật ngữ hạ tầng kỹ thuật nội bộ.
+ *
+ * @param {unknown} notification
+ * @returns {string}
+ */
+export function formatNotificationBody(notification) {
+  const rawBody = typeof notification === "string" ? notification : notification?.body;
+  if (!rawBody || typeof rawBody !== "string") return "";
+
+  let body = rawBody.trim();
+
+  // Chuẩn hóa lỗi chính tả nếu có (ví dụ "phan ánh" -> "phản ánh")
+  body = body.replace(/trạng thái phan ánh/gi, "Trạng thái phản ánh");
+
+  // Dịch các từ khóa trạng thái phản ánh tiếng Anh xuất hiện trong body:
+  // Ví dụ:
+  // - "Trạng thái phản ánh CP-2026-00000028: resolved" -> "Trạng thái phản ánh CP-2026-00000028: Đã xử lý"
+  // - "Trạng thái phản ánh CP-2026-00000028: approved" -> "Trạng thái phản ánh CP-2026-00000028: Đã phê duyệt"
+  // - "Phản ánh CP-2026-00000028: resolved" -> "Phản ánh CP-2026-00000028: Đã xử lý"
+  for (const [statusKey, statusLabel] of Object.entries(FEEDBACK_STATUS_LABELS)) {
+    // 1. Sau dấu hai chấm ": status" (với khoảng trắng tùy chọn)
+    const colonRegex = new RegExp(`(:\\s*)${statusKey}\\b`, "gi");
+    body = body.replace(colonRegex, `$1${statusLabel}`);
+
+    // 2. Trạng thái đứng ở cuối chuỗi hoặc ranh giới từ độc lập
+    const boundaryRegex = new RegExp(`\\b${statusKey}$`, "i");
+    if (boundaryRegex.test(body) && !body.includes(statusLabel)) {
+      body = body.replace(boundaryRegex, statusLabel);
+    }
+  }
+
+  // Nếu notification có data.status tường minh mà body vẫn còn chứa mã tiếng Anh
+  const explicitStatus = notification?.data?.status;
+  if (explicitStatus && typeof explicitStatus === "string" && FEEDBACK_STATUS_LABELS[explicitStatus]) {
+    const label = FEEDBACK_STATUS_LABELS[explicitStatus];
+    const regex = new RegExp(`\\b${explicitStatus}\\b`, "gi");
+    body = body.replace(regex, label);
+  }
+
+  return neutralizeUiMessage(body);
+}
