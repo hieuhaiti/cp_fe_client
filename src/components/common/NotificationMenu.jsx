@@ -42,12 +42,25 @@ function getNotificationPath(notification) {
   const data = notification?.data || notification?.payload;
   const channel = notification?.channel ?? data?.channel;
   const newsId = data?.newsId ?? data?.news_id;
+  const type = notification?.type || "";
+  const title = notification?.title || "";
+
   if (
     typeof data?.path === "string" &&
     data.path.startsWith("/") &&
     !data.path.startsWith("//")
   ) {
     return data.path;
+  }
+  if (typeof data?.url === "string" && /^https?:\/\//.test(data.url)) {
+    return data.url;
+  }
+  if (
+    type === "hydro_scenario_triggered" ||
+    type.startsWith("hydro_") ||
+    (typeof title === "string" && title.includes("kịch bản thủy văn"))
+  ) {
+    return "https://admincampha.tourismpj.pro.vn/flood";
   }
   if (channel === "feedback" || notification?.type?.startsWith("field_report_")) {
     return "/feedback/mine";
@@ -99,13 +112,38 @@ export default function NotificationMenu({ enabled = true }) {
       if (message?.event !== "notification") return;
       refreshNotifications();
       if (!open) {
-        toast.info(
-          message.data?.title || message.data?.body || "Bạn có thông báo mới",
-          { toastId: `notification-${message.data?.id || "new"}` },
-        );
+        const notif = message.data || {};
+        const title = notif.title || "";
+        const body = notif.body || "";
+        const createdAt =
+          notif.created_at ||
+          notif.createdAt ||
+          message.timestamp ||
+          new Date().toISOString();
+        const timeStr = formatDateTime(createdAt);
+        const hasTimeInBody = Boolean(body && /\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}/.test(body));
+        const lines = [title, body].filter(Boolean);
+        if (!hasTimeInBody && timeStr && timeStr !== "-") {
+          lines.push(timeStr);
+        }
+        const text = lines.join("\n");
+        toast.info(text, {
+          toastId: `notification-${notif.id || "new"}`,
+          style: { whiteSpace: "pre-line" },
+          onClick: () => {
+            const path = getNotificationPath(notif);
+            if (path) {
+              if (/^https?:\/\//.test(path)) {
+                window.open(path, "_blank", "noopener,noreferrer");
+              } else {
+                navigate(path);
+              }
+            }
+          },
+        });
       }
     },
-    [open, refreshNotifications],
+    [open, refreshNotifications, navigate],
   );
 
   useNotificationWebSocket({ enabled, onMessage: handleSocketMessage });
@@ -214,7 +252,13 @@ export default function NotificationMenu({ enabled = true }) {
                   markOneMutation.mutate(notification.id);
                 }
                 const path = getNotificationPath(notification);
-                if (path) navigate(path);
+                if (path) {
+                  if (/^https?:\/\//.test(path)) {
+                    window.open(path, "_blank", "noopener,noreferrer");
+                  } else {
+                    navigate(path);
+                  }
+                }
               }}
             >
               <div className="flex w-full items-start gap-2">
