@@ -112,7 +112,6 @@ function CollapsibleSection({
   title,
   activeCount,
   count,
-  isLargeGroup,
   isOpen,
   onToggleOpen,
   onEnableAll,
@@ -137,11 +136,6 @@ function CollapsibleSection({
           <span className="min-w-0 flex-1 line-clamp-2 wrap-break-word leading-5">
             {title}
           </span>
-          {isLargeGroup && (
-            <span className="shrink-0 rounded-md bg-warning/15 px-1.5 py-0.5 text-[10px] font-semibold text-warning">
-              {count} lớp
-            </span>
-          )}
           <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
             {activeCount}/{count}
           </span>
