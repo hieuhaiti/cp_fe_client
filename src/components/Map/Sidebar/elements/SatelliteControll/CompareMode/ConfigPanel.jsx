@@ -15,13 +15,6 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -38,7 +31,6 @@ import {
 import { WarningBanner } from "../shared/WarningBanner";
 import {
   LABELS,
-  COLLECTION_OPTIONS,
   CLOUD_COVER_MIN,
   CLOUD_COVER_MAX,
 } from "../shared/constants";
@@ -47,7 +39,7 @@ import { Slider } from "@/components/ui/slider";
 /**
  * Configuration panel for CompareMode.
  * Includes two stacked date-range cards (Period 1 / Period 2),
- * layer checkboxes, collection selector, and cloud-cover slider.
+ * layer checkboxes and cloud-cover slider.
  */
 function ConfigPanel() {
   const {
@@ -55,7 +47,6 @@ function ConfigPanel() {
     endDate1,
     startDate2,
     endDate2,
-    collection,
     cloudCover,
     activeLayerTypes,
     isLoading,
@@ -63,7 +54,6 @@ function ConfigPanel() {
     setEndDate1,
     setStartDate2,
     setEndDate2,
-    setCollection,
     setCloudCover,
     toggleLayerType,
     setIsLoading,
@@ -139,13 +129,13 @@ function ConfigPanel() {
       const params1 = {
         startDate: startDate1.toISOString().split("T")[0],
         endDate: endDate1.toISOString().split("T")[0],
-        collection,
+        collection: "s2",
         cloudCover,
       };
       const params2 = {
         startDate: startDate2.toISOString().split("T")[0],
         endDate: endDate2.toISOString().split("T")[0],
-        collection,
+        collection: "s2",
         cloudCover,
       };
 
@@ -186,7 +176,6 @@ function ConfigPanel() {
     endDate1,
     startDate2,
     endDate2,
-    collection,
     cloudCover,
     setIsLoading,
     setError,
@@ -472,32 +461,6 @@ function ConfigPanel() {
             <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {LABELS.settings}
             </h4>
-            <div className="space-y-1.5">
-              <Label htmlFor="satellite-compare-collection" className="text-xs text-muted-foreground">
-                {LABELS.collection}
-              </Label>
-              <Select
-                value={collection}
-                onValueChange={setCollection}
-                disabled={isLoading}
-              >
-                <SelectTrigger
-                  id="satellite-compare-collection"
-                  size="sm"
-                  variant="filled"
-                  className="w-full text-xs"
-                >
-                  <SelectValue placeholder="Chọn nguồn dữ liệu" />
-                </SelectTrigger>
-                <SelectContent position="popper" align="start">
-                  {COLLECTION_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Label className="text-xs text-muted-foreground">
