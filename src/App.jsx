@@ -89,6 +89,7 @@ export default function App() {
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/auth/verify-email" element={<VerifyEmail />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
 
           <Route path="/400" element={<BadRequestPage />} />
