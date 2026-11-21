@@ -12,13 +12,6 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import {
   Tooltip,
@@ -36,7 +29,6 @@ import {
 import { WarningBanner } from "../shared/WarningBanner";
 import {
   LABELS,
-  COLLECTION_OPTIONS,
   CLOUD_COVER_MIN,
   CLOUD_COVER_MAX,
 } from "../shared/constants";
@@ -50,12 +42,10 @@ function ConfigPanel() {
   const {
     startDate,
     endDate,
-    collection,
     cloudCover,
     isLoading,
     setStartDate,
     setEndDate,
-    setCollection,
     setCloudCover,
     setIsLoading,
     setError,
@@ -134,7 +124,7 @@ function ConfigPanel() {
       const params = {
         startDate: startDate.toISOString().split("T")[0],
         endDate: endDate.toISOString().split("T")[0],
-        collection,
+        collection: "s2",
         cloudCover,
       };
 
@@ -155,7 +145,7 @@ function ConfigPanel() {
         syncSingleImagesFromResults(results, {
           startDate,
           endDate,
-          collection,
+          collection: "s2",
           cloudCover,
         });
       }
@@ -170,7 +160,6 @@ function ConfigPanel() {
     selectedLayers,
     startDate,
     endDate,
-    collection,
     cloudCover,
     setIsLoading,
     setError,
@@ -302,32 +291,6 @@ function ConfigPanel() {
             <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {LABELS.settings}
             </h4>
-            <div className="space-y-1.5">
-              <Label htmlFor="satellite-single-collection" className="text-xs text-muted-foreground">
-                {LABELS.collection}
-              </Label>
-              <Select
-                value={collection}
-                onValueChange={setCollection}
-                disabled={isLoading}
-              >
-                <SelectTrigger
-                  id="satellite-single-collection"
-                  size="sm"
-                  variant="filled"
-                  className="w-full text-xs"
-                >
-                  <SelectValue placeholder="Chọn nguồn dữ liệu" />
-                </SelectTrigger>
-                <SelectContent position="popper" align="start">
-                  {COLLECTION_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Label className="text-xs text-muted-foreground">
